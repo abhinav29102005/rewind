@@ -1,0 +1,12 @@
+name: Filesystem Policy
+rules:
+  - name: block_recursive_remove
+    risk: irreversible
+    reason: "Recursive remove can destroy large swaths of files"
+    command_patterns:
+      - "(?i)\\brm\\s+(-rf?|--recursive)\\b"
+  - name: reversible_modifications
+    risk: reversible
+    reason: "Modifications can be restored via snapshot"
+    command_patterns:
+      - "(?i)\\b(cp|mv|chmod|chown)\\b"

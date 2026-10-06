@@ -1,0 +1,12 @@
+name: PostgreSQL Policy
+rules:
+  - name: block_drops
+    risk: irreversible
+    reason: "DROP commands permanently delete structure and data"
+    command_patterns:
+      - "(?i)\\bDROP\\s+(TABLE|DATABASE|SCHEMA|INDEX|ROLE)\\b"
+  - name: block_truncates
+    risk: irreversible
+    reason: "TRUNCATE clears table data permanently without triggers"
+    command_patterns:
+      - "(?i)\\bTRUNCATE\\s+TABLE\\b"
