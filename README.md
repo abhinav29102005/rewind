@@ -70,14 +70,14 @@ Most existing guardrail tools are **cooperative** — the agent is told to route
 
 ## Quickstart
 
-> ⚠️ **Coming soon** — the project is in early development.
+> ✅ **Phase 1 MVP Complete** — Rewind currently features a working MCP Server, a cryptographic Classifier Engine, an Audit Log, and a native VS Code Approval UI.
 
 ```bash
-# Install (planned)
-pip install rewind-guard
+# Install the engine
+uv pip install rewind-guard
 
-# Or use as a drop-in MCP proxy
-rewind proxy --config rewind.yaml
+# Start the MCP proxy server for Cursor/Claude
+uv run rewind-mcp
 
 # Run the incident-replay demo
 rewind demo --scenario pocketos
@@ -91,7 +91,7 @@ rewind demo --scenario pocketos
 | Storage | SQLite (audit log, state) |
 | Proxy | MCP-compatible proxy layer |
 | Snapshots | Git / filesystem-level snapshots |
-| UI | Local web dashboard |
+| UI | VS Code Extension & Local web dashboard |
 | AI (optional) | Any open model for risk explanations |
 
 ## Honest Landscape
