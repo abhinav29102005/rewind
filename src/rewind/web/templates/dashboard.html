@@ -1,111 +1,111 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard — Rewind Control Plane{% endblock %}
+{% block title %}Dashboard — Rewind{% endblock %}
 
 {% block content %}
 {% if mode == "audit_only" %}
-<div style="background: rgba(245, 158, 11, 0.2); border: 1px solid var(--warning); color: var(--warning); padding: 1rem; border-radius: 0.5rem; margin-bottom: 1.5rem; font-weight: 600;">
-    ⚠️ AUDIT-ONLY MODE ACTIVE: All agent actions are logged, but NO destructive calls are blocked!
+<div class="bg-yellow-950/30 border border-yellow-900/50 text-yellow-500 p-4 rounded-lg mb-6 text-sm font-medium flex items-center gap-3">
+    <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+    AUDIT-ONLY MODE ACTIVE: All agent actions are logged, but NO destructive calls are blocked!
 </div>
 {% endif %}
 
-<div class="nav-tabs">
-    <a class="nav-tab active" onclick="showTab('queue', this)">Approval Queue ({{ pending_requests|length }})</a>
-    <a class="nav-tab" onclick="showTab('sessions', this)">Sessions ({{ sessions|length }})</a>
-    <a class="nav-tab" onclick="showTab('audit', this)">Audit Log</a>
-    <a class="nav-tab" onclick="showTab('notifications', this)">Notifications</a>
+<div class="flex gap-6 mb-8 border-b border-[#222]">
+    <button class="tab-btn active pb-3 px-1 text-sm font-medium transition-colors" onclick="showTab(approvals, this)">Approvals <span class="text-xs bg-[#222] text-gray-300 px-1.5 py-0.5 rounded ml-1">{{ pending_requests|length }}</span></button>
+    <button class="tab-btn pb-3 px-1 text-sm font-medium transition-colors" onclick="showTab(sessions, this)">Active Sessions <span class="text-xs bg-[#222] text-gray-300 px-1.5 py-0.5 rounded ml-1">{{ sessions|length }}</span></button>
+    <button class="tab-btn pb-3 px-1 text-sm font-medium transition-colors" onclick="showTab(audit, this)">Cryptographic Ledger</button>
+    <button class="tab-btn pb-3 px-1 text-sm font-medium transition-colors" onclick="showTab(notifications, this)">Deliveries</button>
     {% if current_user.role.value == "admin" %}
-    <a class="nav-tab" onclick="showTab('users', this)">User Management</a>
+    <button class="tab-btn pb-3 px-1 text-sm font-medium transition-colors" onclick="showTab(users, this)">Access Control</button>
     {% endif %}
 </div>
 
-<!-- 1. APPROVAL QUEUE TAB -->
-<div id="tab-queue" class="tab-content">
-    <div class="card">
-        <h3>Pending Approvals</h3>
-        {% if not pending_requests %}
-        <p style="color: var(--text-muted); margin-top: 1rem;">No actions currently waiting for approval.</p>
-        {% else %}
-        <table>
-            <thead>
-                <tr>
-                    <th>Request ID</th>
-                    <th>Action</th>
-                    <th>Mode</th>
-                    <th>Expires In</th>
-                    <th>Untrusted Payload</th>
-                    <th>Decision</th>
-                </tr>
-            </thead>
-            <tbody>
+<!-- 1. APPROVALS TAB -->
+<div id="tab-approvals" class="tab-content block animate-in fade-in duration-300">
+    <div class="glass-panel overflow-hidden">
+        <div class="px-6 py-4 border-b border-[#222] bg-[#050505]">
+            <h3 class="text-white font-medium text-sm flex items-center gap-2"><i data-lucide="shield-alert" class="w-4 h-4 text-gray-500"></i> Action Queue</h3>
+        </div>
+        
+        <div class="p-6">
+            {% if not pending_requests %}
+                <div class="py-16 text-center text-gray-600 flex flex-col items-center">
+                    <i data-lucide="check-circle" class="w-10 h-10 mb-3 opacity-20"></i>
+                    <p class="text-sm">Zero pending interventions.</p>
+                </div>
+            {% else %}
+                <div class="space-y-6">
                 {% for req in pending_requests %}
-                <tr>
-                    <td><code>{{ req.id }}</code></td>
-                    <td><code>{{ req.action_id }}</code></td>
-                    <td>{{ req.mode }} ({{ req.required }})</td>
-                    <td>{{ req.expires_at.strftime('%H:%M:%S') }}</td>
-                    <td>
-                        <div class="untrusted-box">{{ req.action_hash[:16] }}...</div>
-                    </td>
-                    <td>
+                    <div class="border border-[#222] rounded-lg p-6 bg-[#030303] relative group hover:border-[#444] transition-colors">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <span class="text-xs text-red-500 font-mono tracking-widest mb-2 block uppercase">{{ req.id }}</span>
+                                <div class="flex items-center gap-2">
+                                    <span class="bg-red-950 text-red-400 text-xs font-semibold px-2.5 py-0.5 border border-red-900 rounded uppercase">Blocked</span>
+                                    <span class="text-gray-400 text-sm">Attempted by <span class="text-gray-300 font-mono text-xs">{{ req.session_id }}</span></span>
+                                </div>
+                            </div>
+                            <span class="text-gray-600 font-mono text-xs">{{ req.timestamp.strftime(%H:%M:%S) }}</span>
+                        </div>
+                        
+                        <div class="font-mono text-sm bg-[#000] p-4 rounded border border-[#1a1a1a] text-gray-300 overflow-x-auto whitespace-nowrap mb-6 shadow-inner">
+                            {{ req.action_data.get(command, req.action_data) }}
+                        </div>
+
                         {% if current_user.role.value in ["admin", "approver"] %}
-                        <div style="display: flex; gap: 0.5rem; align-items: center;">
-                            <form action="/api/approvals/{{ req.id }}/vote" method="post" style="display:inline;">
+                        <div class="flex gap-3 justify-end border-t border-[#111] pt-4">
+                            <form action="/api/approvals/{{ req.id }}/vote" method="post" class="inline">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                <input type="hidden" name="decision" value="approve">
-                                <input type="text" name="otp_code" placeholder="Code (e.g. RW-XXXX)" style="width: 110px; padding: 0.25rem;">
-                                <button type="submit" class="btn btn-success" style="padding: 0.25rem 0.5rem;">Approve</button>
+                                <input type="hidden" name="vote" value="deny">
+                                <button type="submit" class="btn-danger flex items-center gap-2 px-4 py-2 text-sm"><i data-lucide="x" class="w-4 h-4"></i> Hard Deny</button>
                             </form>
-                            <form action="/api/approvals/{{ req.id }}/vote" method="post" style="display:inline;">
+                            <form action="/api/approvals/{{ req.id }}/vote" method="post" class="inline">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                <input type="hidden" name="decision" value="deny">
-                                <button type="submit" class="btn btn-danger" style="padding: 0.25rem 0.5rem;">Deny</button>
+                                <input type="hidden" name="vote" value="approve">
+                                <button type="submit" class="btn-primary flex items-center gap-2 px-4 py-2 text-sm"><i data-lucide="check" class="w-4 h-4"></i> Generate Token</button>
                             </form>
                         </div>
-                        {% else %}
-                        <span style="color: var(--text-muted);">Read-only</span>
                         {% endif %}
-                    </td>
-                </tr>
+                    </div>
                 {% endfor %}
-            </tbody>
-        </table>
-        {% endif %}
+                </div>
+            {% endif %}
+        </div>
     </div>
 </div>
 
 <!-- 2. SESSIONS TAB -->
-<div id="tab-sessions" class="tab-content" style="display: none;">
-    {% if current_user.role.value in ["admin", "approver"] %}
-    <div class="card">
-        <h3>Start New Session</h3>
-        <form action="/api/sessions/start" method="post" style="display: flex; gap: 1rem; margin-top: 1rem; align-items: flex-end;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <div>
-                <label style="display: block; font-size: 0.875rem; color: var(--text-muted);">Session Name</label>
-                <input type="text" name="name" required placeholder="e.g. task_migration">
-            </div>
-            <div>
-                <label style="display: block; font-size: 0.875rem; color: var(--text-muted);">Policy Profile</label>
-                <select name="profile">
-                    <option value="default">default</option>
-                    <option value="strict">strict (N-of-M & escalate)</option>
-                </select>
-            </div>
-            <button type="submit" class="btn">Start Session</button>
-        </form>
+<div id="tab-sessions" class="tab-content hidden animate-in fade-in duration-300">
+    <div class="glass-panel p-6 mb-8 flex gap-8 items-end bg-[#050505]">
+        <div class="flex-1">
+            <h3 class="text-white text-sm font-medium mb-1">Provision Execution Session</h3>
+            <p class="text-xs text-gray-500 mb-4">Create an ephemeral session for an agent.</p>
+            <form action="/api/sessions/start" method="post" class="flex gap-4 items-end">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="flex flex-col gap-2 flex-1">
+                    <label class="text-xs font-mono text-gray-500">NAME</label>
+                    <input type="text" name="name" placeholder="Agent Run 42" required class="text-sm">
+                </div>
+                <div class="flex flex-col gap-2 flex-1">
+                    <label class="text-xs font-mono text-gray-500">POLICY_PROFILE</label>
+                    <select name="policy_profile" class="text-sm">
+                        {% for p in policy_profiles %}
+                        <option value="{{ p }}">{{ p }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="btn-primary py-2 px-6 text-sm">Deploy</button>
+            </form>
+        </div>
     </div>
-    {% endif %}
 
-    <div class="card">
-        <h3>Sessions</h3>
-        <table>
+    <div class="glass-panel overflow-hidden">
+        <table class="w-full text-left border-collapse">
             <thead>
                 <tr>
-                    <th>Session ID</th>
+                    <th>Identifier</th>
                     <th>Name</th>
                     <th>Profile</th>
-                    <th>Started</th>
                     <th>Status</th>
                     <th>Action</th>
                 </tr>
@@ -113,22 +113,21 @@
             <tbody>
                 {% for s in sessions %}
                 <tr>
-                    <td><code>{{ s.id }}</code></td>
-                    <td>{{ s.name }}</td>
-                    <td><code>{{ s.policy_profile }}</code></td>
-                    <td>{{ s.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td class="font-mono text-gray-400 text-xs">{{ s.id[:8] }}...</td>
+                    <td class="text-gray-200">{{ s.name }}</td>
+                    <td class="font-mono text-gray-500 text-xs">{{ s.policy_profile }}</td>
                     <td>
                         {% if s.ended_at %}
-                        <span class="badge" style="background: rgba(148, 163, 184, 0.2); color: var(--text-muted);">Ended</span>
+                        <span class="text-gray-600 text-xs border border-gray-800 px-2.5 py-1 rounded">Ended</span>
                         {% else %}
-                        <span class="badge badge-safe">Active</span>
+                        <span class="text-green-400 text-xs border border-green-900 bg-green-950/30 px-2.5 py-1 rounded">Active</span>
                         {% endif %}
                     </td>
                     <td>
                         {% if not s.ended_at and current_user.role.value in ["admin", "approver"] %}
-                        <form action="/api/sessions/{{ s.id }}/end" method="post" style="display:inline;">
+                        <form action="/api/sessions/{{ s.id }}/end" method="post">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                            <button type="submit" class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">End</button>
+                            <button type="submit" class="text-gray-600 hover:text-red-400 transition-colors text-xs font-medium">Revoke</button>
                         </form>
                         {% endif %}
                     </td>
@@ -139,47 +138,45 @@
     </div>
 </div>
 
-<!-- 3. AUDIT LOG TAB -->
-<div id="tab-audit" class="tab-content" style="display: none;">
-    <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h3>Tamper-Evident Audit Log</h3>
-            <div style="display: flex; gap: 0.5rem;">
-                <form action="/api/audit/verify" method="post" style="display: inline;">
+<!-- 3. AUDIT TAB -->
+<div id="tab-audit" class="tab-content hidden animate-in fade-in duration-300">
+    <div class="glass-panel overflow-hidden">
+        <div class="p-5 border-b border-[#222] flex justify-between items-center bg-[#050505]">
+            <h3 class="text-white text-sm font-medium flex items-center gap-2"><i data-lucide="database" class="w-4 h-4 text-gray-500"></i> Immutable Event Ledger</h3>
+            <div class="flex gap-3">
+                <form action="/api/audit/verify" method="post" class="inline">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <button type="submit" class="btn btn-secondary">🔍 Verify Chain</button>
+                    <button type="submit" class="text-xs bg-[#111] hover:bg-[#222] text-white border border-[#333] px-3 py-1.5 rounded transition-colors flex items-center gap-1"><i data-lucide="shield-check" class="w-3 h-3"></i> Verify Integrity</button>
                 </form>
-                <a href="/api/audit/export?format=csv" class="btn btn-secondary">Export CSV</a>
-                <a href="/api/audit/export?format=json" class="btn btn-secondary">Export JSON</a>
             </div>
         </div>
+        
         {% if verification_status is not none %}
-        <div style="margin-top: 1rem; padding: 0.75rem; border-radius: 0.375rem; {% if verification_status %}background: rgba(16, 185, 129, 0.2); color: var(--success);{% else %}background: rgba(239, 68, 68, 0.2); color: var(--danger);{% endif %}">
+        <div class="p-4 border-b border-[#222] {% if verification_status %}bg-green-950/20 text-green-400{% else %}bg-red-950/20 text-red-400{% endif %} text-sm flex items-center gap-2">
             {% if verification_status %}
-            ✅ Audit log hash chain intact. All entries verified.
+            <i data-lucide="check-circle-2" class="w-4 h-4"></i> Cryptographic hash chain verified mathematically intact.
             {% else %}
-            🚨 AUDIT CHAIN BROKEN! Tampering detected!
+            <i data-lucide="alert-triangle" class="w-4 h-4"></i> CRITICAL: TAMPERING DETECTED!
             {% endif %}
         </div>
         {% endif %}
-        <table>
+
+        <table class="w-full">
             <thead>
                 <tr>
-                    <th>Event Type</th>
-                    <th>Actor</th>
-                    <th>Session</th>
-                    <th>Data</th>
-                    <th>Time</th>
+                    <th>Event Signature</th>
+                    <th>Actor / Session</th>
+                    <th>Payload</th>
+                    <th>Timestamp</th>
                 </tr>
             </thead>
             <tbody>
                 {% for e in audit_events %}
                 <tr>
-                    <td><code>{{ e.event_type }}</code></td>
-                    <td>{{ e.actor or "-" }}</td>
-                    <td><code>{{ e.session_id or "-" }}</code></td>
-                    <td><div style="font-family: monospace; font-size: 0.75rem; max-width: 400px; overflow: hidden; text-overflow: ellipsis;">{{ e.data }}</div></td>
-                    <td>{{ e.ts or "-" }}</td>
+                    <td class="font-mono text-gray-300">{{ e.event_type }}</td>
+                    <td class="text-gray-500 text-xs font-mono">{{ e.actor or e.session_id or "-" }}</td>
+                    <td class="font-mono text-xs text-gray-500 max-w-sm truncate" title="{{ e.data }}">{{ e.data }}</td>
+                    <td class="text-gray-500 text-xs font-mono">{{ e.ts or "-" }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -188,33 +185,28 @@
 </div>
 
 <!-- 4. NOTIFICATIONS TAB -->
-<div id="tab-notifications" class="tab-content" style="display: none;">
-    <div class="card">
-        <h3>Notification Delivery Log</h3>
-        <table>
+<div id="tab-notifications" class="tab-content hidden animate-in fade-in duration-300">
+    <div class="glass-panel overflow-hidden">
+        <table class="w-full">
             <thead>
                 <tr>
-                    <th>Event Type</th>
+                    <th>Dispatch Type</th>
                     <th>Channel</th>
                     <th>Status</th>
-                    <th>Attempts</th>
-                    <th>Last Error</th>
-                    <th>Created</th>
+                    <th>Diagnostics</th>
                 </tr>
             </thead>
             <tbody>
                 {% for n in notifications %}
                 <tr>
-                    <td><code>{{ n.event_type }}</code></td>
-                    <td><strong>{{ n.channel }}</strong></td>
+                    <td class="font-mono text-gray-300">{{ n.event_type }}</td>
+                    <td class="text-gray-400 text-sm">{{ n.channel }}</td>
                     <td>
-                        <span class="badge {% if n.status == 'delivered' %}badge-safe{% else %}badge-irreversible{% endif %}">
+                        <span class="text-xs px-2 py-0.5 border rounded uppercase tracking-wider {% if n.status == delivered %}text-green-400 border-green-900 bg-green-950/30{% else %}text-yellow-400 border-yellow-900 bg-yellow-950/30{% endif %}">
                             {{ n.status }}
                         </span>
                     </td>
-                    <td>{{ n.attempts }}</td>
-                    <td><span style="color: var(--danger); font-size: 0.75rem;">{{ n.last_error or "-" }}</span></td>
-                    <td>{{ n.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                    <td class="text-red-400 text-xs font-mono">{{ n.last_error or "-" }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -222,53 +214,52 @@
     </div>
 </div>
 
-<!-- 5. USERS TAB (Admin Only) -->
+<!-- 5. USERS TAB -->
 {% if current_user.role.value == "admin" %}
-<div id="tab-users" class="tab-content" style="display: none;">
-    <div class="card">
-        <h3>Create New User</h3>
-        <form action="/api/users/create" method="post" style="display: flex; gap: 1rem; margin-top: 1rem; align-items: flex-end;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <div>
-                <label style="display: block; font-size: 0.875rem; color: var(--text-muted);">Username</label>
-                <input type="text" name="username" required>
-            </div>
-            <div>
-                <label style="display: block; font-size: 0.875rem; color: var(--text-muted);">Password</label>
-                <input type="password" name="password" required>
-            </div>
-            <div>
-                <label style="display: block; font-size: 0.875rem; color: var(--text-muted);">Role</label>
-                <select name="role">
-                    <option value="approver">approver</option>
-                    <option value="viewer">viewer</option>
-                    <option value="admin">admin</option>
-                </select>
-            </div>
-            <button type="submit" class="btn">Create User</button>
-        </form>
+<div id="tab-users" class="tab-content hidden animate-in fade-in duration-300">
+    <div class="glass-panel p-6 mb-8 flex gap-8 items-end bg-[#050505]">
+        <div class="flex-1">
+            <h3 class="text-white text-sm font-medium mb-1">IAM Provisioning</h3>
+            <form action="/api/users/create" method="post" class="flex gap-4 items-end mt-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="flex flex-col gap-2 flex-1">
+                    <label class="text-xs font-mono text-gray-500">USERNAME</label>
+                    <input type="text" name="username" required class="text-sm">
+                </div>
+                <div class="flex flex-col gap-2 flex-1">
+                    <label class="text-xs font-mono text-gray-500">PASSWORD</label>
+                    <input type="password" name="password" required class="text-sm">
+                </div>
+                <div class="flex flex-col gap-2 flex-1">
+                    <label class="text-xs font-mono text-gray-500">ROLE</label>
+                    <select name="role" class="text-sm">
+                        <option value="approver">Approver</option>
+                        <option value="viewer">Viewer</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-primary py-2 px-6 text-sm">Provision</button>
+            </form>
+        </div>
     </div>
 
-    <div class="card">
-        <h3>Users</h3>
-        <table>
+    <div class="glass-panel overflow-hidden">
+        <table class="w-full">
             <thead>
                 <tr>
-                    <th>User ID</th>
-                    <th>Username</th>
-                    <th>Role</th>
-                    <th>Active</th>
+                    <th>Identity</th>
+                    <th>Permissions</th>
+                    <th>Status</th>
                     <th>Created</th>
                 </tr>
             </thead>
             <tbody>
                 {% for u in users %}
                 <tr>
-                    <td><code>{{ u.id }}</code></td>
-                    <td>{{ u.username }}</td>
-                    <td><span class="badge">{{ u.role.value }}</span></td>
-                    <td>{{ "Yes" if u.active else "No" }}</td>
-                    <td>{{ u.created_at.strftime('%Y-%m-%d') }}</td>
+                    <td class="text-gray-200">{{ u.username }}</td>
+                    <td><span class="text-xs px-2 py-0.5 bg-[#111] border border-[#333] text-gray-400 rounded uppercase tracking-wider">{{ u.role.value }}</span></td>
+                    <td class="text-gray-500 text-sm">{{ "Active" if u.active else "Disabled" }}</td>
+                    <td class="text-gray-600 text-xs font-mono">{{ u.created_at.strftime(%Y-%m-%d) }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -279,10 +270,13 @@
 
 <script>
     function showTab(tabId, el) {
-        document.querySelectorAll('.tab-content').forEach(d => d.style.display = 'none');
-        document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-        document.getElementById('tab-' + tabId).style.display = 'block';
-        el.classList.add('active');
+        document.querySelectorAll(.tab-content).forEach(d => { d.classList.remove(block); d.classList.add(hidden); });
+        document.querySelectorAll(.tab-btn).forEach(t => t.classList.remove(active, text-white));
+        document.querySelectorAll(.tab-btn).forEach(t => t.classList.add(text-gray-500));
+        const tab = document.getElementById(tab- + tabId);
+        tab.classList.remove(hidden); tab.classList.add(block);
+        el.classList.add(active, text-white);
+        el.classList.remove(text-gray-500);
     }
 </script>
 {% endblock %}

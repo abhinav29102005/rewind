@@ -1,26 +1,38 @@
 {% extends "base.html" %}
 
-{% block title %}Sign In — Rewind Control Plane{% endblock %}
+{% block title %}Login — Rewind{% endblock %}
 
 {% block content %}
-<div style="max-width: 400px; margin: 4rem auto;">
-    <div class="card">
-        <h2 style="margin-bottom: 1.5rem; color: var(--primary);">Sign In</h2>
+<div class="flex items-center justify-center min-h-[70vh]">
+    <div class="glass-panel p-8 w-full max-w-md bg-[#050505]">
+        <div class="text-center mb-8">
+            <i data-lucide="shield" class="w-10 h-10 mx-auto text-white mb-4"></i>
+            <h2 class="text-xl text-white font-medium">Gateway Authentication</h2>
+            <p class="text-gray-500 text-sm mt-2">Sign in to access the Rewind Control Plane</p>
+        </div>
+
         {% if error %}
-        <div style="background: rgba(239, 68, 68, 0.2); color: var(--danger); padding: 0.75rem; border-radius: 0.375rem; margin-bottom: 1rem;">
-            {{ error }}
+        <div class="bg-red-950/30 border border-red-900/50 text-red-500 p-3 rounded mb-6 text-sm flex items-center gap-2">
+            <i data-lucide="alert-circle" class="w-4 h-4"></i> {{ error }}
         </div>
         {% endif %}
-        <form action="/login" method="post" style="display: flex; flex-direction: column; gap: 1rem;">
-            <div>
-                <label style="display: block; font-size: 0.875rem; color: var(--text-muted); margin-bottom: 0.25rem;">Username</label>
-                <input type="text" name="username" required style="width: 100%;">
+
+        <form action="/login" method="post" class="flex flex-col gap-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            
+            <div class="flex flex-col gap-2">
+                <label class="text-xs font-mono text-gray-500 tracking-wider">IDENTITY</label>
+                <input type="text" name="username" required class="w-full text-sm" autofocus autocomplete="username">
             </div>
-            <div>
-                <label style="display: block; font-size: 0.875rem; color: var(--text-muted); margin-bottom: 0.25rem;">Password</label>
-                <input type="password" name="password" required style="width: 100%;">
+            
+            <div class="flex flex-col gap-2 mb-2">
+                <label class="text-xs font-mono text-gray-500 tracking-wider">PASSPHRASE</label>
+                <input type="password" name="password" required class="w-full text-sm" autocomplete="current-password">
             </div>
-            <button type="submit" class="btn" style="width: 100%; justify-content: center; margin-top: 0.5rem;">Sign In</button>
+            
+            <button type="submit" class="btn-primary w-full py-2.5 mt-2 flex items-center justify-center gap-2">
+                Authenticate <i data-lucide="arrow-right" class="w-4 h-4"></i>
+            </button>
         </form>
     </div>
 </div>

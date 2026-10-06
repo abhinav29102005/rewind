@@ -33,6 +33,17 @@ dependencies = [
     "rich>=13.0",
     "mcp>=1.0.0",
     "fastmcp>=1.0.0",
+    "fastapi>=0.142.2",
+    "uvicorn[standard]>=0.54.0",
+    "jinja2>=3.1.6",
+    "python-multipart>=0.0.32",
+    "argon2-cffi>=25.1.0",
+    "python-jose[cryptography]>=3.5.0",
+    "passlib>=1.7.4",
+    "sqlglot>=30.21.0",
+    "slack-sdk>=3.45.0",
+    "discord-py>=2.7.1",
+    "requests>=2.34.2",
 ]
 
 [project.optional-dependencies]
