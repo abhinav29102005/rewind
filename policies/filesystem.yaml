@@ -1,12 +1,148 @@
-name: Filesystem Policy
+pack: filesystem
+version: 1
+tool: fs
+description: "Filesystem and shell command classification rules"
+default_risk: irreversible
 rules:
-  - name: block_recursive_remove
+  # Destructive / Irreversible patterns
+  - id: fs-rm-recursive
+    match: { program: rm, recursive: present }
     risk: irreversible
-    reason: "Recursive remove can destroy large swaths of files"
-    command_patterns:
-      - "(?i)\\brm\\s+(-rf?|--recursive)\\b"
-  - name: reversible_modifications
+    reason: "Recursive directory deletion"
+  - id: fs-rm-force
+    match: { program: rm, force: present }
+    risk: irreversible
+    reason: "Forced file deletion"
+  - id: fs-targets-root
+    match: { program_in: [rm, shred, srm], targets_root: present }
+    risk: irreversible
+    reason: "Operation targets system root or current directory root"
+  - id: fs-find-delete
+    match: { program: find, find_delete: present }
+    risk: irreversible
+    reason: "find -delete recursively removes matching files"
+  - id: fs-shred-wipe
+    match: { program_in: [shred, wipefs, srm] }
+    risk: irreversible
+    reason: "Secure file wipe/shred permanently destroys data"
+  - id: fs-disk-format
+    match: { program_in: [mkfs, fdisk, gdisk, parted] }
+    risk: irreversible
+    reason: "Disk partitioning or filesystem formatting"
+  - id: fs-dd-device
+    match: { program: dd, device_target: present }
+    risk: irreversible
+    reason: "Direct raw write to block device"
+  - id: fs-device-target
+    match: { device_target: present }
+    risk: irreversible
+    reason: "Operation targets device node directly"
+
+  # Reversible file modifications
+  - id: fs-rm-file
+    match: { program: rm, recursive: absent }
     risk: reversible
-    reason: "Modifications can be restored via snapshot"
-    command_patterns:
-      - "(?i)\\b(cp|mv|chmod|chown)\\b"
+    reason: "Single file deletion; restorable from snapshot"
+  - id: fs-mv-cp
+    match: { program_in: [mv, cp, ln, install, rsync] }
+    risk: reversible
+    reason: "File movement or copy"
+  - id: fs-modify-perms
+    match: { program_in: [chmod, chown, chgrp] }
+    risk: reversible
+    reason: "File permission or ownership modification"
+  - id: fs-create-touch
+    match: { program_in: [touch, mkdir] }
+    risk: reversible
+    reason: "Creation of file or directory"
+  - id: fs-redirect-write
+    match: { kind: redirect, op_in: [">", ">>", ">|", "&>", "&>>"] }
+    risk: reversible
+    reason: "Output redirection writing to a file"
+  - id: fs-sed-inline
+    match: { program: sed, flags_any: [i] }
+    risk: reversible
+    reason: "In-place file text modification"
+  - id: fs-archive-extract
+    match: { program_in: [tar, unzip, gunzip, bunzip2] }
+    risk: reversible
+    reason: "Archive extraction modifying files"
+  - id: fs-dev-tools
+    match:
+      program_in:
+        - python
+        - python3
+        - node
+        - pytest
+        - cargo
+        - npm
+        - npx
+        - yarn
+        - pnpm
+        - make
+        - uv
+        - pip
+        - poetry
+        - go
+      inline_code: absent
+    risk: reversible
+    reason: "Standard development tool execution without raw inline eval"
+
+  # Structured operations (MCP / API)
+  - id: fs-op-read
+    match: { kind: op, operation_in: [read_file, list_dir, get_file_info] }
+    risk: safe
+    reason: "Read-only filesystem inspection"
+  - id: fs-op-write
+    match: { kind: op, operation_in: [write_file, edit_file, create_directory] }
+    risk: reversible
+    reason: "Filesystem creation or write"
+  - id: fs-op-delete-rec
+    match: { kind: op, operation: delete_file, recursive: present }
+    risk: irreversible
+    reason: "Recursive file/directory deletion"
+  - id: fs-op-delete
+    match: { kind: op, operation: delete_file }
+    risk: reversible
+    reason: "File deletion restorable from snapshot"
+
+  # Benign read-only programs
+  - id: fs-read-only
+    match:
+      program_in:
+        - ls
+        - cat
+        - grep
+        - egrep
+        - fgrep
+        - head
+        - tail
+        - less
+        - more
+        - wc
+        - stat
+        - file
+        - which
+        - whereis
+        - whoami
+        - id
+        - pwd
+        - echo
+        - printf
+        - date
+        - uname
+        - diff
+        - cmp
+        - find
+        - true
+        - false
+        - env
+        - printenv
+        - tree
+        - du
+        - df
+        - ps
+        - top
+        - uptime
+    risk: safe
+    reason: "Read-only system command"

@@ -1,62 +1,92 @@
-"""
-Plugin interface for Rewind.
+"""Plugin base definitions, interfaces, and version validation.
 
-Plugins can provide:
-- Custom action classifiers
-- Custom snapshot backends
-- Custom approval channels (Slack, email, etc.)
-- Custom policy rules
+Three plugin kinds are supported:
+- classifier: implements Classifier
+- snapshot_backend: implements SnapshotBackend
+- approval_channel: implements ApprovalChannel
+
+Plugins run in-process and are fully trusted code.
 """
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
+import concurrent.futures
+import logging
+from enum import StrEnum
 
-if TYPE_CHECKING:
-    from ..classifier.engine import ActionRequest, Classification, Classifier
+from pydantic import BaseModel, ConfigDict, Field
 
+from ..contracts import (
+    REWIND_API_VERSION,
+    ActionRequest,
+    Classification,
+    Classifier,
+    RiskClass,
+)
 
-class RewindPlugin(ABC):
-    """Base class for all Rewind plugins."""
-
-    @property
-    @abstractmethod
-    def name(self) -> str:
-        """Human-readable plugin name."""
-        ...
-
-    @property
-    @abstractmethod
-    def version(self) -> str:
-        """Plugin version string."""
-        ...
-
-    @property
-    def description(self) -> str:
-        """Optional description."""
-        return ""
-
-    def on_load(self, config: dict[str, Any]) -> None:
-        """Called when the plugin is loaded. Override to initialize."""
-        return None
-
-    def on_unload(self) -> None:
-        """Called when the plugin is unloaded. Override to clean up."""
-        return None
-
-    def get_classifiers(self) -> list[Classifier]:
-        """Return any classifiers this plugin provides."""
-        return []
+logger = logging.getLogger(__name__)
 
 
-class ClassifierPlugin(RewindPlugin):
-    """A plugin that provides a custom classifier."""
+class PluginKind(StrEnum):
+    CLASSIFIER = "classifier"
+    SNAPSHOT_BACKEND = "snapshot_backend"
+    APPROVAL_CHANNEL = "approval_channel"
 
-    @abstractmethod
-    def classify(self, action: ActionRequest) -> Classification | None:
-        """Classify an action. Return None to defer to the next classifier."""
-        ...
 
-    def get_classifiers(self) -> list[Classifier]:
-        return [self]
+class PluginMeta(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]*$")
+    version: str
+    rewind_api_version: str = REWIND_API_VERSION
+    kind: PluginKind
+    description: str = ""
+
+    def validate_api_version(self) -> None:
+        target_major = REWIND_API_VERSION.split(".")[0]
+        plugin_major = self.rewind_api_version.split(".")[0]
+        if target_major != plugin_major:
+            raise ValueError(
+                f"Plugin {self.name!r} requires Rewind API major version {plugin_major}, "
+                f"but current system version is {target_major}"
+            )
+
+
+class PluginClassifierWrapper(Classifier):
+    """Wraps a plugin classifier with additive strictness, timeouts, and fail-closed handling."""
+
+    def __init__(self, classifier: Classifier, timeout_seconds: float = 2.0) -> None:
+        self.underlying = classifier
+        self.name = getattr(classifier, "name", type(classifier).__name__)
+        self.timeout_seconds = timeout_seconds
+
+    def supports(self, action: ActionRequest) -> bool:
+        try:
+            return self.underlying.supports(action)
+        except Exception:
+            return True
+
+    def classify(self, action: ActionRequest) -> Classification:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(self.underlying.classify, action)
+            try:
+                res = future.result(timeout=self.timeout_seconds)
+                return res
+            except concurrent.futures.TimeoutError:
+                logger.error("Classifier plugin %s timed out (>%ss); failing closed to irreversible", self.name, self.timeout_seconds)
+                return Classification(
+                    action_id=action.id,
+                    risk=RiskClass.IRREVERSIBLE,
+                    reasons=[f"Plugin {self.name} timed out after {self.timeout_seconds}s"],
+                    rule_ids=[f"plugin:{self.name}:timeout"],
+                    risk_score=1.0,
+                )
+            except Exception as e:
+                logger.exception("Classifier plugin %s raised an exception; failing closed to irreversible", self.name)
+                return Classification(
+                    action_id=action.id,
+                    risk=RiskClass.IRREVERSIBLE,
+                    reasons=[f"Plugin {self.name} error: {e}"],
+                    rule_ids=[f"plugin:{self.name}:error"],
+                    risk_score=1.0,
+                )

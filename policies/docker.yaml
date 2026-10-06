@@ -1,0 +1,76 @@
+pack: docker
+version: 1
+tool: docker
+description: "Docker container and image classification rules"
+default_risk: irreversible
+rules:
+  # Destructive / Irreversible
+  - id: docker-system-prune
+    match: { subcommand_in: [system prune, container prune, image prune] }
+    risk: irreversible
+    reason: "Pruning removes unused docker objects, containers or images"
+  - id: docker-volume-rm
+    match: { subcommand_in: [volume rm, volume prune] }
+    risk: irreversible
+    reason: "Deleting or pruning docker volumes destroys persistent data"
+  - id: docker-rm-force
+    match: { subcommand: rm, force: present }
+    risk: irreversible
+    reason: "Forced container removal kills and removes running container"
+  - id: docker-rmi-force
+    match: { subcommand: rmi, force: present }
+    risk: irreversible
+    reason: "Force removing docker image"
+  - id: docker-network-rm
+    match: { subcommand_in: [network rm, network prune] }
+    risk: irreversible
+    reason: "Removing docker network components"
+
+  # Reversible operations
+  - id: docker-rm
+    match: { subcommand: rm, force: absent }
+    risk: reversible
+    reason: "Container removal without force flag"
+  - id: docker-lifecycle
+    match:
+      subcommand_in:
+        - run
+        - create
+        - start
+        - stop
+        - restart
+        - pause
+        - unpause
+        - kill
+        - build
+        - tag
+        - pull
+        - push
+        - commit
+    risk: reversible
+    reason: "Docker container or image lifecycle management"
+  - id: docker-compose-up-down
+    match: { subcommand_in: [compose up, compose down, compose restart] }
+    risk: reversible
+    reason: "Docker compose service state changes"
+
+  # Safe read-only operations
+  - id: docker-read-only
+    match:
+      subcommand_in:
+        - ps
+        - images
+        - inspect
+        - logs
+        - version
+        - info
+        - top
+        - port
+        - stats
+        - history
+        - diff
+        - events
+        - volume ls
+        - network ls
+    risk: safe
+    reason: "Read-only inspection of docker state"

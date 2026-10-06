@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Sign In — Rewind Control Plane{% endblock %}
+
+{% block content %}
+<div style="max-width: 400px; margin: 4rem auto;">
+    <div class="card">
+        <h2 style="margin-bottom: 1.5rem; color: var(--primary);">Sign In</h2>
+        {% if error %}
+        <div style="background: rgba(239, 68, 68, 0.2); color: var(--danger); padding: 0.75rem; border-radius: 0.375rem; margin-bottom: 1rem;">
+            {{ error }}
+        </div>
+        {% endif %}
+        <form action="/login" method="post" style="display: flex; flex-direction: column; gap: 1rem;">
+            <div>
+                <label style="display: block; font-size: 0.875rem; color: var(--text-muted); margin-bottom: 0.25rem;">Username</label>
+                <input type="text" name="username" required style="width: 100%;">
+            </div>
+            <div>
+                <label style="display: block; font-size: 0.875rem; color: var(--text-muted); margin-bottom: 0.25rem;">Password</label>
+                <input type="password" name="password" required style="width: 100%;">
+            </div>
+            <button type="submit" class="btn" style="width: 100%; justify-content: center; margin-top: 0.5rem;">Sign In</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

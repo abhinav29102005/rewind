@@ -1,0 +1,59 @@
+pack: aws_s3
+version: 1
+tool: aws_s3
+description: "AWS S3 storage classification rules"
+default_risk: irreversible
+rules:
+  # Destructive / Irreversible
+  - id: s3-delete-bucket
+    match: { api_action: DeleteBucket }
+    risk: irreversible
+    reason: "Deleting an S3 bucket permanently removes storage resource"
+  - id: s3-delete-objects
+    match: { api_action_in: [DeleteObject, DeleteObjects] }
+    risk: irreversible
+    reason: "Deleting objects permanently removes stored data"
+  - id: s3-versioning-suspended
+    match: { api_action: PutBucketVersioning, versioning_status: Suspended }
+    risk: irreversible
+    reason: "Suspending versioning disables object version recovery"
+  - id: s3-lifecycle-expiration
+    match: { api_action: PutLifecycleConfiguration, lifecycle_expiration: present }
+    risk: irreversible
+    reason: "Lifecycle expiration rule automatically purges objects"
+  - id: s3-put-policy-public
+    match: { api_action: PutBucketPolicy, public_principal: present }
+    risk: irreversible
+    reason: "Attaching public access policy to S3 bucket"
+  - id: s3-put-policy
+    match: { api_action_in: [PutBucketPolicy, DeleteBucketPolicy] }
+    risk: irreversible
+    reason: "Modifying access control policy on S3 bucket"
+
+  # Reversible operations
+  - id: s3-put-object
+    match: { api_action_in: [PutObject, CopyObject, CreateMultipartUpload, UploadPart] }
+    risk: reversible
+    reason: "Writing or uploading an object"
+  - id: s3-create-bucket
+    match: { api_action: CreateBucket }
+    risk: reversible
+    reason: "Creating a new bucket"
+
+  # Safe read-only operations
+  - id: s3-read-only
+    match:
+      api_action_in:
+        - GetObject
+        - ListObjects
+        - ListObjectsV2
+        - ListBuckets
+        - GetBucketPolicy
+        - GetBucketLocation
+        - GetBucketVersioning
+        - GetLifecycleConfiguration
+        - HeadObject
+        - HeadBucket
+        - ListObjectVersions
+    risk: safe
+    reason: "Read-only inspection of S3 buckets or objects"
