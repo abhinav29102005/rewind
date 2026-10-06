@@ -1,0 +1,105 @@
+pack: git
+version: 1
+tool: git
+description: "Git source control classification rules"
+default_risk: irreversible
+params:
+  protected_branches: [main, master, production, prod, release/*, release-*]
+  release_tag_patterns: ["v[0-9]*", "release-*", "release/*"]
+rules:
+  # Destructive / Irreversible actions
+  - id: git-push-force-protected
+    match: { subcommand: push, force: present, protected: present }
+    risk: irreversible
+    reason: "Force-push to a protected branch permanently overwrites commit history"
+  - id: git-push-delete-protected
+    match: { subcommand: push, delete: present, protected: present }
+    risk: irreversible
+    reason: "Deleting a protected remote branch"
+  - id: git-branch-delete-force
+    match: { subcommand: branch, delete_force: present }
+    risk: irreversible
+    reason: "Force deleting a git branch (-D)"
+  - id: git-branch-delete-protected
+    match: { subcommand: branch, delete: present, protected: present }
+    risk: irreversible
+    reason: "Deleting a protected branch"
+  - id: git-reset-hard
+    match: { subcommand: reset, hard: present }
+    risk: irreversible
+    reason: "git reset --hard discards uncommitted and working tree changes"
+  - id: git-clean-force
+    match: { subcommand: clean, force: present, dry_run: absent }
+    risk: irreversible
+    reason: "git clean -f permanently removes untracked files"
+  - id: git-gc-prune
+    match: { subcommand: gc, prune_now: present }
+    risk: irreversible
+    reason: "git gc --prune=now deletes unreferenced unreachable objects"
+  - id: git-tag-delete-release
+    match: { subcommand: tag, delete: present, release_tag: present }
+    risk: irreversible
+    reason: "Deleting a production release tag"
+  - id: git-history-rewrite
+    match: { subcommand_in: [filter-branch, filter-repo] }
+    risk: irreversible
+    reason: "Rewriting repository commit history"
+
+  # Reversible actions (can be undone with git reflog / commit revert)
+  - id: git-branch-delete
+    match: { subcommand: branch, delete: present, protected: absent, delete_force: absent }
+    risk: reversible
+    reason: "Deleting an unprotected local branch"
+  - id: git-push
+    match: { subcommand: push, force: absent, delete: absent }
+    risk: reversible
+    reason: "Standard git push of new commits"
+  - id: git-commit-merge
+    match: { subcommand_in: [commit, merge, rebase, cherry-pick, revert] }
+    risk: reversible
+    reason: "Git commit, merge, or rebase operation (can be rewound via reflog)"
+  - id: git-branch-create
+    match: { subcommand: branch, positionals: present, delete: absent }
+    risk: reversible
+    reason: "Creating or modifying local branches"
+  - id: git-tag-create
+    match: { subcommand: tag, delete: absent }
+    risk: reversible
+    reason: "Creating a git tag"
+  - id: git-stash
+    match: { subcommand: stash }
+    risk: reversible
+    reason: "Working directory stash operation"
+  - id: git-checkout-switch
+    match: { subcommand_in: [checkout, switch] }
+    risk: reversible
+    reason: "Switching branches or checking out files"
+  - id: git-restore-worktree
+    match: { subcommand: restore }
+    risk: reversible
+    reason: "Restoring working tree files"
+
+  # Safe read-only actions
+  - id: git-branch-list
+    match: { subcommand: branch, positionals: absent, delete: absent }
+    risk: safe
+    reason: "Listing branches without modification"
+  - id: git-read-only
+    match:
+      subcommand_in:
+        - status
+        - log
+        - diff
+        - show
+        - rev-parse
+        - ls-files
+        - ls-remote
+        - remote
+        - fetch
+        - describe
+        - blame
+        - config
+        - version
+        - check-ignore
+    risk: safe
+    reason: "Read-only git query or inspection"

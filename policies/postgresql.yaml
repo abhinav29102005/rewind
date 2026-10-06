@@ -1,12 +1,71 @@
-name: PostgreSQL Policy
+pack: postgresql
+version: 1
+tool: sql
+dialect: postgres
+description: "PostgreSQL classification rules"
+default_risk: irreversible
 rules:
-  - name: block_drops
+  - id: pg-select
+    match: { statement_type: SELECT }
+    risk: safe
+    reason: "Read-only query"
+  - id: pg-insert
+    match: { statement_type: INSERT }
+    risk: reversible
+    reason: "Adds rows; can be undone from a snapshot"
+  - id: pg-update-scoped
+    match: { statement_type: UPDATE, where: present }
+    risk: reversible
+    reason: "UPDATE with WHERE modifies specific rows"
+  - id: pg-update-unscoped
+    match: { statement_type: UPDATE, where: absent }
     risk: irreversible
-    reason: "DROP commands permanently delete structure and data"
-    command_patterns:
-      - "(?i)\\bDROP\\s+(TABLE|DATABASE|SCHEMA|INDEX|ROLE)\\b"
-  - name: block_truncates
+    reason: "UPDATE without WHERE modifies every row"
+  - id: pg-delete-scoped
+    match: { statement_type: DELETE, where: present }
+    risk: reversible
+    reason: "DELETE with WHERE removes specific rows"
+  - id: pg-delete-unscoped
+    match: { statement_type: DELETE, where: absent }
     risk: irreversible
-    reason: "TRUNCATE clears table data permanently without triggers"
-    command_patterns:
-      - "(?i)\\bTRUNCATE\\s+TABLE\\b"
+    reason: "DELETE without WHERE removes every row"
+  - id: pg-truncate
+    match: { statement_type: TRUNCATE }
+    risk: irreversible
+    reason: "TRUNCATE permanently clears all rows"
+  - id: pg-drop
+    match: { statement_type: DROP, object_in: [TABLE, SCHEMA, DATABASE, INDEX, VIEW, FUNCTION, TRIGGER] }
+    risk: irreversible
+    reason: "DROP permanently removes database object"
+  - id: pg-alter-drop-column
+    match: { statement_type: ALTER, action: DROP_COLUMN }
+    risk: irreversible
+    reason: "ALTER TABLE DROP COLUMN permanently drops data in column"
+  - id: pg-alter
+    match: { statement_type: ALTER }
+    risk: reversible
+    reason: "Schema alteration"
+  - id: pg-grant-revoke
+    match: { statement_type_in: [GRANT, REVOKE] }
+    risk: irreversible
+    reason: "Modifies user access controls"
+  - id: pg-tx
+    match: { statement_type_in: [BEGIN, COMMIT, ROLLBACK] }
+    risk: safe
+    reason: "Transaction control statement"
+  - id: pg-set-show
+    match: { statement_type_in: [SET, SHOW, DESCRIBE] }
+    risk: safe
+    reason: "Session configuration or inspection"
+  - id: pg-explain
+    match: { statement_type: EXPLAIN }
+    risk: safe
+    reason: "Query execution plan inspection"
+  - id: pg-copy-export
+    match: { statement_type: COPY, action: TO }
+    risk: safe
+    reason: "Data export to destination"
+  - id: pg-copy-import
+    match: { statement_type: COPY, action: FROM }
+    risk: reversible
+    reason: "Data import from source"

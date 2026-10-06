@@ -65,6 +65,8 @@ rewind_audit.db
 *.vault
 .rewind/
 demo_agent.py
+data/
+site/
 
 # MacOS
 .DS_Store

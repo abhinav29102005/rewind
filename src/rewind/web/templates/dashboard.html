@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — Rewind Control Plane{% endblock %}
+
+{% block content %}
+{% if mode == "audit_only" %}
+<div style="background: rgba(245, 158, 11, 0.2); border: 1px solid var(--warning); color: var(--warning); padding: 1rem; border-radius: 0.5rem; margin-bottom: 1.5rem; font-weight: 600;">
+    ⚠️ AUDIT-ONLY MODE ACTIVE: All agent actions are logged, but NO destructive calls are blocked!
+</div>
+{% endif %}
+
+<div class="nav-tabs">
+    <a class="nav-tab active" onclick="showTab('queue', this)">Approval Queue ({{ pending_requests|length }})</a>
+    <a class="nav-tab" onclick="showTab('sessions', this)">Sessions ({{ sessions|length }})</a>
+    <a class="nav-tab" onclick="showTab('audit', this)">Audit Log</a>
+    <a class="nav-tab" onclick="showTab('notifications', this)">Notifications</a>
+    {% if current_user.role.value == "admin" %}
+    <a class="nav-tab" onclick="showTab('users', this)">User Management</a>
+    {% endif %}
+</div>
+
+<!-- 1. APPROVAL QUEUE TAB -->
+<div id="tab-queue" class="tab-content">
+    <div class="card">
+        <h3>Pending Approvals</h3>
+        {% if not pending_requests %}
+        <p style="color: var(--text-muted); margin-top: 1rem;">No actions currently waiting for approval.</p>
+        {% else %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Request ID</th>
+                    <th>Action</th>
+                    <th>Mode</th>
+                    <th>Expires In</th>
+                    <th>Untrusted Payload</th>
+                    <th>Decision</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for req in pending_requests %}
+                <tr>
+                    <td><code>{{ req.id }}</code></td>
+                    <td><code>{{ req.action_id }}</code></td>
+                    <td>{{ req.mode }} ({{ req.required }})</td>
+                    <td>{{ req.expires_at.strftime('%H:%M:%S') }}</td>
+                    <td>
+                        <div class="untrusted-box">{{ req.action_hash[:16] }}...</div>
+                    </td>
+                    <td>
+                        {% if current_user.role.value in ["admin", "approver"] %}
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <form action="/api/approvals/{{ req.id }}/vote" method="post" style="display:inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="decision" value="approve">
+                                <input type="text" name="otp_code" placeholder="Code (e.g. RW-XXXX)" style="width: 110px; padding: 0.25rem;">
+                                <button type="submit" class="btn btn-success" style="padding: 0.25rem 0.5rem;">Approve</button>
+                            </form>
+                            <form action="/api/approvals/{{ req.id }}/vote" method="post" style="display:inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="decision" value="deny">
+                                <button type="submit" class="btn btn-danger" style="padding: 0.25rem 0.5rem;">Deny</button>
+                            </form>
+                        </div>
+                        {% else %}
+                        <span style="color: var(--text-muted);">Read-only</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 2. SESSIONS TAB -->
+<div id="tab-sessions" class="tab-content" style="display: none;">
+    {% if current_user.role.value in ["admin", "approver"] %}
+    <div class="card">
+        <h3>Start New Session</h3>
+        <form action="/api/sessions/start" method="post" style="display: flex; gap: 1rem; margin-top: 1rem; align-items: flex-end;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div>
+                <label style="display: block; font-size: 0.875rem; color: var(--text-muted);">Session Name</label>
+                <input type="text" name="name" required placeholder="e.g. task_migration">
+            </div>
+            <div>
+                <label style="display: block; font-size: 0.875rem; color: var(--text-muted);">Policy Profile</label>
+                <select name="profile">
+                    <option value="default">default</option>
+                    <option value="strict">strict (N-of-M & escalate)</option>
+                </select>
+            </div>
+            <button type="submit" class="btn">Start Session</button>
+        </form>
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <h3>Sessions</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Session ID</th>
+                    <th>Name</th>
+                    <th>Profile</th>
+                    <th>Started</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in sessions %}
+                <tr>
+                    <td><code>{{ s.id }}</code></td>
+                    <td>{{ s.name }}</td>
+                    <td><code>{{ s.policy_profile }}</code></td>
+                    <td>{{ s.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td>
+                        {% if s.ended_at %}
+                        <span class="badge" style="background: rgba(148, 163, 184, 0.2); color: var(--text-muted);">Ended</span>
+                        {% else %}
+                        <span class="badge badge-safe">Active</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if not s.ended_at and current_user.role.value in ["admin", "approver"] %}
+                        <form action="/api/sessions/{{ s.id }}/end" method="post" style="display:inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">End</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 3. AUDIT LOG TAB -->
+<div id="tab-audit" class="tab-content" style="display: none;">
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h3>Tamper-Evident Audit Log</h3>
+            <div style="display: flex; gap: 0.5rem;">
+                <form action="/api/audit/verify" method="post" style="display: inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-secondary">🔍 Verify Chain</button>
+                </form>
+                <a href="/api/audit/export?format=csv" class="btn btn-secondary">Export CSV</a>
+                <a href="/api/audit/export?format=json" class="btn btn-secondary">Export JSON</a>
+            </div>
+        </div>
+        {% if verification_status is not none %}
+        <div style="margin-top: 1rem; padding: 0.75rem; border-radius: 0.375rem; {% if verification_status %}background: rgba(16, 185, 129, 0.2); color: var(--success);{% else %}background: rgba(239, 68, 68, 0.2); color: var(--danger);{% endif %}">
+            {% if verification_status %}
+            ✅ Audit log hash chain intact. All entries verified.
+            {% else %}
+            🚨 AUDIT CHAIN BROKEN! Tampering detected!
+            {% endif %}
+        </div>
+        {% endif %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Event Type</th>
+                    <th>Actor</th>
+                    <th>Session</th>
+                    <th>Data</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in audit_events %}
+                <tr>
+                    <td><code>{{ e.event_type }}</code></td>
+                    <td>{{ e.actor or "-" }}</td>
+                    <td><code>{{ e.session_id or "-" }}</code></td>
+                    <td><div style="font-family: monospace; font-size: 0.75rem; max-width: 400px; overflow: hidden; text-overflow: ellipsis;">{{ e.data }}</div></td>
+                    <td>{{ e.ts or "-" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 4. NOTIFICATIONS TAB -->
+<div id="tab-notifications" class="tab-content" style="display: none;">
+    <div class="card">
+        <h3>Notification Delivery Log</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Event Type</th>
+                    <th>Channel</th>
+                    <th>Status</th>
+                    <th>Attempts</th>
+                    <th>Last Error</th>
+                    <th>Created</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for n in notifications %}
+                <tr>
+                    <td><code>{{ n.event_type }}</code></td>
+                    <td><strong>{{ n.channel }}</strong></td>
+                    <td>
+                        <span class="badge {% if n.status == 'delivered' %}badge-safe{% else %}badge-irreversible{% endif %}">
+                            {{ n.status }}
+                        </span>
+                    </td>
+                    <td>{{ n.attempts }}</td>
+                    <td><span style="color: var(--danger); font-size: 0.75rem;">{{ n.last_error or "-" }}</span></td>
+                    <td>{{ n.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 5. USERS TAB (Admin Only) -->
+{% if current_user.role.value == "admin" %}
+<div id="tab-users" class="tab-content" style="display: none;">
+    <div class="card">
+        <h3>Create New User</h3>
+        <form action="/api/users/create" method="post" style="display: flex; gap: 1rem; margin-top: 1rem; align-items: flex-end;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div>
+                <label style="display: block; font-size: 0.875rem; color: var(--text-muted);">Username</label>
+                <input type="text" name="username" required>
+            </div>
+            <div>
+                <label style="display: block; font-size: 0.875rem; color: var(--text-muted);">Password</label>
+                <input type="password" name="password" required>
+            </div>
+            <div>
+                <label style="display: block; font-size: 0.875rem; color: var(--text-muted);">Role</label>
+                <select name="role">
+                    <option value="approver">approver</option>
+                    <option value="viewer">viewer</option>
+                    <option value="admin">admin</option>
+                </select>
+            </div>
+            <button type="submit" class="btn">Create User</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h3>Users</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>User ID</th>
+                    <th>Username</th>
+                    <th>Role</th>
+                    <th>Active</th>
+                    <th>Created</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr>
+                    <td><code>{{ u.id }}</code></td>
+                    <td>{{ u.username }}</td>
+                    <td><span class="badge">{{ u.role.value }}</span></td>
+                    <td>{{ "Yes" if u.active else "No" }}</td>
+                    <td>{{ u.created_at.strftime('%Y-%m-%d') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<script>
+    function showTab(tabId, el) {
+        document.querySelectorAll('.tab-content').forEach(d => d.style.display = 'none');
+        document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+        document.getElementById('tab-' + tabId).style.display = 'block';
+        el.classList.add('active');
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,55 @@
+site_name: Rewind
+site_description: An enforced approval and undo layer for AI agents
+site_author: Rewind Contributors
+repo_name: rewind
+repo_url: https://github.com/abhinav29102005/rewind
+
+theme:
+  name: material
+  palette:
+    - scheme: slate
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - scheme: default
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
+    - content.code.annotate
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - attr_list
+
+nav:
+  - Getting Started: index.md
+  - Architecture: architecture.md
+  - Configuration Reference: config.md
+  - Policy Pack Authoring: policy_packs.md
+  - Plugin Authoring: plugins.md
+  - Scenario Authoring: scenarios.md
+  - Threat Model & Limitations: threat_model.md
+  - Project Roadmap:
+      - Phase 0 - Foundation: phases/phase0.md
+      - Phase 1 - Core Interception: phases/phase1.md
+      - Phase 2 - Ecosystem & Policies: phases/phase2.md
+      - Phase 3 - Team Controls: phases/phase3.md
+      - Phase 4 - Cloud & Hosted: phases/phase4.md
