@@ -7,6 +7,8 @@ rollback) in a SQLite database with a SHA-256 hash chain for tamper detection.
 
 from __future__ import annotations
 
+import threading
+
 import contextlib
 from datetime import datetime, timezone
 import json
@@ -90,7 +92,8 @@ class AuditLog:
 
     def __init__(self, db_path: Path | str = "rewind_audit.db") -> None:
         self._db_path = Path(db_path)
-        self._conn = sqlite3.connect(str(self._db_path))
+        self._lock = threading.Lock()
+        self._conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.executescript(_SCHEMA)
         with contextlib.suppress(sqlite3.OperationalError):

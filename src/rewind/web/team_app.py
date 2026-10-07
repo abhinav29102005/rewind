@@ -8,9 +8,9 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Request, Response, status
+from fastapi import Body, Depends, FastAPI, Form, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
@@ -47,7 +47,8 @@ def create_team_app(
 ) -> FastAPI:
     app = FastAPI(title="Rewind Control Plane", version="1.0.0")
 
-    audit = audit_log or StubAuditLog()
+    from ..audit.log import AuditLog as SqliteAuditLog
+    audit = audit_log or SqliteAuditLog(Path(store.db_path).parent / "audit.db")
     queue = queue_manager or ApprovalQueueManager(store, audit_log=audit)
     sessions = session_manager or SessionManager(store, config, audit_log=audit)
 
@@ -210,28 +211,90 @@ def create_team_app(
         if not req:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Approval request not found")
 
-        # Mock reconstituting the action request for the vote
         dummy_action = ActionRequest(
             id=req.action_id,
             session_id=req.session_id,
-            agent_id="agent",
-            tool="sql",
+            agent_id="mcp-agent",
+            tool="shell",
             operation="exec",
-            payload={"hash": req.action_hash},
-            created_at=datetime.now(),
+            payload=req.action_payload,
+            created_at=req.created_at,
         )
 
         dec = VoteDecision.APPROVE if decision == "approve" else VoteDecision.DENY
         try:
-            # Bypass strict action payload re-hash for web demo if using recorded hash
+            sod = getattr(getattr(config.approval, "default", None), "separation_of_duties", True)
             new_status, msg = queue.vote(
                 request_id=request_id,
                 approver=user,
                 decision=dec,
                 current_action=dummy_action,
                 one_time_code=otp_code.strip() if otp_code else None,
+                separation_of_duties=sod,
             )
             return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+        except ApprovalError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+    # --- REST API Endpoints (for VS Code extension, CLI, and Automation) ---
+
+    @app.get("/api/v1/approvals/pending")
+    def get_pending_approvals_api(user: User = Depends(require_user)) -> list[dict[str, Any]]:
+        check_permission(user, "view")
+        pending = store.list_approval_requests(status=ApprovalStatus.PENDING)
+        return [
+            {
+                "id": r.id,
+                "action_id": r.action_id,
+                "session_id": r.session_id,
+                "command": r.action_payload.get("command", ""),
+                "action_payload": r.action_payload,
+                "action_hash": r.action_hash,
+                "mode": r.mode,
+                "required": r.required,
+                "status": r.status.value,
+                "created_at": r.created_at.isoformat(),
+                "expires_at": r.expires_at.isoformat(),
+            }
+            for r in pending
+        ]
+
+    @app.post("/api/v1/approvals/{request_id}/decision")
+    def decide_approval_api(
+        request_id: str,
+        payload: dict[str, Any] = Body(...),
+        user: User = Depends(require_user),
+    ) -> dict[str, Any]:
+        check_permission(user, "approve")
+        req = store.get_approval_request(request_id)
+        if not req:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Approval request not found")
+
+        decision_str = str(payload.get("decision", "approve")).lower()
+        dec = VoteDecision.APPROVE if decision_str == "approve" else VoteDecision.DENY
+        otp = payload.get("otp_code")
+
+        dummy_action = ActionRequest(
+            id=req.action_id,
+            session_id=req.session_id,
+            agent_id="mcp-agent",
+            tool="shell",
+            operation="exec",
+            payload=req.action_payload,
+            created_at=req.created_at,
+        )
+
+        try:
+            sod = getattr(getattr(config.approval, "default", None), "separation_of_duties", True)
+            new_status, msg = queue.vote(
+                request_id=request_id,
+                approver=user,
+                decision=dec,
+                current_action=dummy_action,
+                one_time_code=otp.strip() if otp else None,
+                separation_of_duties=sod,
+            )
+            return {"request_id": request_id, "status": new_status.value, "message": msg}
         except ApprovalError as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 

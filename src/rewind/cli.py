@@ -161,9 +161,18 @@ def verify(audit_db: str) -> None:
 @main.command()
 @click.argument("snapshot_id")
 def rollback(snapshot_id: str) -> None:
-    """Rollback to a snapshot."""
-    console.print(f"[yellow]Rollback to {snapshot_id}...[/yellow]")
-    console.print("[dim]Rollback not yet implemented in CLI. Use the Python API.[/dim]")
+    """Rollback filesystem state to a snapshot checkpoint."""
+    from .snapshot.git import GitSnapshotError, GitSnapshotter
+
+    snapshotter = GitSnapshotter(Path.cwd())
+    try:
+        ok = snapshotter.rollback(snapshot_id)
+        if ok:
+            console.print(f"[green bold][OK] Successfully rolled back to snapshot {snapshot_id}[/green bold]")
+        else:
+            console.print(f"[red bold][FAIL] Could not rollback to snapshot {snapshot_id}[/red bold]")
+    except GitSnapshotError as e:
+        console.print(f"[red bold][ERROR] Rollback failed:[/red bold] {e}")
 
 
 @main.group()
@@ -229,14 +238,15 @@ def start(config_file: str | None, port: int | None) -> None:
 
     import uvicorn
 
-    from .stubs.audit import StubAuditLog
+    from .audit.log import AuditLog
     from .team.store import TeamStore
     from .web.team_app import create_team_app
 
     data_dir = cfg.data_dir
     data_dir.mkdir(parents=True, exist_ok=True)
     store = TeamStore(data_dir / "team.db")
-    app = create_team_app(store, cfg, audit_log=StubAuditLog())
+    audit_log = AuditLog(data_dir / "audit.db")
+    app = create_team_app(store, cfg, audit_log=audit_log)
 
     uvicorn.run(app, host=cfg.control_plane.host, port=bind_port, log_level="info")
 

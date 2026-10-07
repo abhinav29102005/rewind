@@ -112,3 +112,51 @@ def test_audit_verify_endpoint(client: TestClient):
     resp = client.post("/api/audit/verify", data={"csrf_token": csrf})
     assert resp.status_code == 200
     assert "Audit log hash chain intact" in resp.text
+
+
+def test_api_v1_approvals_endpoints(client: TestClient, store: TeamStore):
+    login_client(client, "approver", "app123")
+
+    # Initially empty or has existing
+    resp = client.get("/api/v1/approvals/pending")
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), list)
+
+    from datetime import datetime, timedelta
+    from rewind.contracts import ActionRequest, action_hash
+
+    now = datetime.now()
+    act = ActionRequest(
+        id="act_test_api",
+        session_id=None,
+        agent_id="mcp-agent",
+        tool="shell",
+        operation="exec",
+        payload={"command": "rm -rf /test"},
+        created_at=now,
+    )
+    h = action_hash(act)
+
+    req = store.create_approval_request(
+        request_id="apr_test_api_v1",
+        action_id=act.id,
+        session_id=None,
+        action_hash=h,
+        mode="any_one",
+        required=1,
+        expires_at=now + timedelta(minutes=15),
+        action_payload=act.payload,
+    )
+
+    resp2 = client.get("/api/v1/approvals/pending")
+    assert resp2.status_code == 200
+    pending_ids = [r["id"] for r in resp2.json()]
+    assert "apr_test_api_v1" in pending_ids
+
+    # Decide via API
+    resp_vote = client.post(
+        "/api/v1/approvals/apr_test_api_v1/decision",
+        json={"decision": "deny"},
+    )
+    assert resp_vote.status_code == 200
+    assert resp_vote.json()["status"] == "denied"

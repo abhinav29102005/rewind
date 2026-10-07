@@ -1,18 +1,23 @@
 {
   "name": "rewind-guard",
   "displayName": "Rewind Agent Guardrails",
-  "description": "Approval UI and proxy integration for Rewind Agent Guardrails.",
+  "description": "Approval UI and fail-safe proxy integration for Rewind Agent Guardrails.",
   "version": "0.1.0",
   "publisher": "abhinav29102005",
   "engines": {
     "vscode": "^1.80.0"
   },
   "categories": [
+    "Security",
     "Other"
   ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
+      {
+        "command": "rewind.listPending",
+        "title": "Rewind: View Pending Approvals"
+      },
       {
         "command": "rewind.approve",
         "title": "Rewind: Approve Action"
@@ -21,7 +26,22 @@
         "command": "rewind.deny",
         "title": "Rewind: Deny Action"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Rewind Guardrails",
+      "properties": {
+        "rewind.apiUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8787",
+          "description": "Base URL of the Rewind Control Plane API server"
+        },
+        "rewind.apiToken": {
+          "type": "string",
+          "default": "",
+          "description": "Bearer API token for authenticated human approver actions"
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
