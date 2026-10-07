@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
+import json
+
 import sqlite3
 import threading
 from datetime import datetime
@@ -58,7 +61,8 @@ CREATE TABLE IF NOT EXISTS approval_requests (
   status TEXT NOT NULL,
   created_at TEXT NOT NULL,
   expires_at TEXT NOT NULL,
-  decided_at TEXT
+  decided_at TEXT,
+  action_payload TEXT DEFAULT '{}'
 );
 
 CREATE TABLE IF NOT EXISTS approval_votes (
@@ -107,6 +111,8 @@ class TeamStore:
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.execute("PRAGMA foreign_keys=ON")
             self._conn.executescript(_SCHEMA)
+            with contextlib.suppress(sqlite3.OperationalError):
+                self._conn.execute("ALTER TABLE approval_requests ADD COLUMN action_payload TEXT DEFAULT '{}'")
             self._conn.commit()
 
     def close(self) -> None:
@@ -266,15 +272,18 @@ class TeamStore:
         mode: str,
         required: int,
         expires_at: datetime,
+        action_payload: dict[str, Any] | None = None,
     ) -> ApprovalRequest:
         now = datetime.now().isoformat()
         exp = expires_at.isoformat()
+        payload_dict = action_payload or {}
+        payload_json = json.dumps(payload_dict, default=str)
         with self._lock:
             self._conn.execute(
                 """INSERT INTO approval_requests
-                   (id, action_id, session_id, action_hash, mode, required, status, created_at, expires_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (request_id, action_id, session_id, action_hash, mode, required, ApprovalStatus.PENDING.value, now, exp),
+                   (id, action_id, session_id, action_hash, mode, required, status, created_at, expires_at, action_payload)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (request_id, action_id, session_id, action_hash, mode, required, ApprovalStatus.PENDING.value, now, exp, payload_json),
             )
             self._conn.commit()
         return ApprovalRequest(
@@ -287,13 +296,24 @@ class TeamStore:
             status=ApprovalStatus.PENDING,
             created_at=datetime.fromisoformat(now),
             expires_at=expires_at,
+            action_payload=payload_dict,
         )
+
+    def _parse_payload(self, val: Any) -> dict[str, Any]:
+        if not val:
+            return {}
+        try:
+            return json.loads(val) if isinstance(val, str) else dict(val)
+        except Exception:
+            return {}
 
     def get_approval_request(self, request_id: str) -> ApprovalRequest | None:
         with self._lock:
             row = self._conn.execute("SELECT * FROM approval_requests WHERE id = ?", (request_id,)).fetchone()
             if not row:
                 return None
+            keys = row.keys()
+            payload = self._parse_payload(row["action_payload"]) if "action_payload" in keys else {}
             return ApprovalRequest(
                 id=row["id"],
                 action_id=row["action_id"],
@@ -305,6 +325,7 @@ class TeamStore:
                 created_at=datetime.fromisoformat(row["created_at"]),
                 expires_at=datetime.fromisoformat(row["expires_at"]),
                 decided_at=datetime.fromisoformat(row["decided_at"]) if row["decided_at"] else None,
+                action_payload=payload,
             )
 
     def list_approval_requests(self, status: ApprovalStatus | None = None) -> list[ApprovalRequest]:

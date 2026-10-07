@@ -5,7 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict
+from typing import Any
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Role(StrEnum):
@@ -52,10 +53,11 @@ class ApprovalStatus(StrEnum):
     APPROVED = "approved"
     DENIED = "denied"
     EXPIRED = "expired"
+    EXECUTED = "executed"
 
 
 class ApprovalRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
     id: str
     action_id: str
@@ -67,6 +69,15 @@ class ApprovalRequest(BaseModel):
     created_at: datetime
     expires_at: datetime
     decided_at: datetime | None = None
+    action_payload: dict[str, Any] = Field(default_factory=dict)
+
+    @property
+    def timestamp(self) -> datetime:
+        return self.created_at
+
+    @property
+    def action_data(self) -> dict[str, Any]:
+        return self.action_payload
 
 
 class VoteDecision(StrEnum):

@@ -11,12 +11,12 @@
 {% endif %}
 
 <div class="flex gap-6 mb-8 border-b border-[#222]">
-    <button class="tab-btn active pb-3 px-1 text-sm font-medium transition-colors" onclick="showTab(approvals, this)">Approvals <span class="text-xs bg-[#222] text-gray-300 px-1.5 py-0.5 rounded ml-1">{{ pending_requests|length }}</span></button>
-    <button class="tab-btn pb-3 px-1 text-sm font-medium transition-colors" onclick="showTab(sessions, this)">Active Sessions <span class="text-xs bg-[#222] text-gray-300 px-1.5 py-0.5 rounded ml-1">{{ sessions|length }}</span></button>
-    <button class="tab-btn pb-3 px-1 text-sm font-medium transition-colors" onclick="showTab(audit, this)">Cryptographic Ledger</button>
-    <button class="tab-btn pb-3 px-1 text-sm font-medium transition-colors" onclick="showTab(notifications, this)">Deliveries</button>
+    <button class="tab-btn active pb-3 px-1 text-sm font-medium transition-colors" onclick="showTab('approvals', this)">Approvals <span class="text-xs bg-[#222] text-gray-300 px-1.5 py-0.5 rounded ml-1">{{ pending_requests|length }}</span></button>
+    <button class="tab-btn pb-3 px-1 text-sm font-medium transition-colors" onclick="showTab('sessions', this)">Active Sessions <span class="text-xs bg-[#222] text-gray-300 px-1.5 py-0.5 rounded ml-1">{{ sessions|length }}</span></button>
+    <button class="tab-btn pb-3 px-1 text-sm font-medium transition-colors" onclick="showTab('audit', this)">Cryptographic Ledger</button>
+    <button class="tab-btn pb-3 px-1 text-sm font-medium transition-colors" onclick="showTab('notifications', this)">Deliveries</button>
     {% if current_user.role.value == "admin" %}
-    <button class="tab-btn pb-3 px-1 text-sm font-medium transition-colors" onclick="showTab(users, this)">Access Control</button>
+    <button class="tab-btn pb-3 px-1 text-sm font-medium transition-colors" onclick="showTab('users', this)">Access Control</button>
     {% endif %}
 </div>
 
@@ -45,7 +45,7 @@
                                     <span class="text-gray-400 text-sm">Attempted by <span class="text-gray-300 font-mono text-xs">{{ req.session_id }}</span></span>
                                 </div>
                             </div>
-                            <span class="text-gray-600 font-mono text-xs">{{ req.timestamp.strftime(%H:%M:%S) }}</span>
+                            <span class="text-gray-600 font-mono text-xs">{{ req.timestamp.strftime('%H:%M:%S') }}</span>
                         </div>
                         
                         <div class="font-mono text-sm bg-[#000] p-4 rounded border border-[#1a1a1a] text-gray-300 overflow-x-auto whitespace-nowrap mb-6 shadow-inner">
@@ -154,7 +154,7 @@
         {% if verification_status is not none %}
         <div class="p-4 border-b border-[#222] {% if verification_status %}bg-green-950/20 text-green-400{% else %}bg-red-950/20 text-red-400{% endif %} text-sm flex items-center gap-2">
             {% if verification_status %}
-            <i data-lucide="check-circle-2" class="w-4 h-4"></i> Cryptographic hash chain verified mathematically intact.
+            <i data-lucide="check-circle-2" class="w-4 h-4"></i> Audit log hash chain intact. Cryptographic signature and all entries verified mathematically intact.
             {% else %}
             <i data-lucide="alert-triangle" class="w-4 h-4"></i> CRITICAL: TAMPERING DETECTED!
             {% endif %}
@@ -202,7 +202,7 @@
                     <td class="font-mono text-gray-300">{{ n.event_type }}</td>
                     <td class="text-gray-400 text-sm">{{ n.channel }}</td>
                     <td>
-                        <span class="text-xs px-2 py-0.5 border rounded uppercase tracking-wider {% if n.status == delivered %}text-green-400 border-green-900 bg-green-950/30{% else %}text-yellow-400 border-yellow-900 bg-yellow-950/30{% endif %}">
+                        <span class="text-xs px-2 py-0.5 border rounded uppercase tracking-wider {% if n.status == 'delivered' or n.status.value == 'delivered' %}text-green-400 border-green-900 bg-green-950/30{% else %}text-yellow-400 border-yellow-900 bg-yellow-950/30{% endif %}">
                             {{ n.status }}
                         </span>
                     </td>
@@ -259,7 +259,7 @@
                     <td class="text-gray-200">{{ u.username }}</td>
                     <td><span class="text-xs px-2 py-0.5 bg-[#111] border border-[#333] text-gray-400 rounded uppercase tracking-wider">{{ u.role.value }}</span></td>
                     <td class="text-gray-500 text-sm">{{ "Active" if u.active else "Disabled" }}</td>
-                    <td class="text-gray-600 text-xs font-mono">{{ u.created_at.strftime(%Y-%m-%d) }}</td>
+                    <td class="text-gray-600 text-xs font-mono">{{ u.created_at.strftime('%Y-%m-%d') }}</td>
                 </tr>
                 {% endfor %}
             </tbody>

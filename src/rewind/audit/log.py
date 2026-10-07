@@ -7,6 +7,8 @@ rollback) in a SQLite database with a SHA-256 hash chain for tamper detection.
 
 from __future__ import annotations
 
+import contextlib
+from datetime import datetime, timezone
 import json
 import logging
 import sqlite3
@@ -65,6 +67,8 @@ CREATE TABLE IF NOT EXISTS audit_log (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     event_type  TEXT    NOT NULL,
     timestamp   REAL    NOT NULL,
+    actor       TEXT,
+    session_id  TEXT,
     data_json   TEXT    NOT NULL,
     data_hash   TEXT    NOT NULL,
     prev_hash   TEXT    NOT NULL,
@@ -89,6 +93,10 @@ class AuditLog:
         self._conn = sqlite3.connect(str(self._db_path))
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.executescript(_SCHEMA)
+        with contextlib.suppress(sqlite3.OperationalError):
+            self._conn.execute("ALTER TABLE audit_log ADD COLUMN actor TEXT")
+        with contextlib.suppress(sqlite3.OperationalError):
+            self._conn.execute("ALTER TABLE audit_log ADD COLUMN session_id TEXT")
         self._last_hash = self._load_last_hash()
 
     def _load_last_hash(self) -> str:
@@ -211,3 +219,91 @@ class AuditLog:
     def close(self) -> None:
         """Close the database connection."""
         self._conn.close()
+
+    def append(
+        self,
+        event_type: str,
+        data: dict[str, Any],
+        actor: str | None = None,
+        session_id: str | None = None,
+    ) -> str:
+        """Append an audit event fulfilling contracts.AuditLog protocol."""
+        seq = self._get_next_index()
+        now_ts = time.time()
+        now_iso = datetime.now(timezone.utc).isoformat()
+        clean_data = json.loads(json.dumps(data, default=str))
+        body = {
+            "seq": seq,
+            "event_type": event_type,
+            "data": clean_data,
+            "actor": actor,
+            "session_id": session_id,
+            "ts": now_iso,
+        }
+        data_hash = chain.compute_data_hash(body)
+        chain_hash = chain.compute_chain_hash(seq, data_hash, self._last_hash)
+
+        self._conn.execute(
+            """INSERT INTO audit_log (event_type, timestamp, actor, session_id, data_json, data_hash, prev_hash, chain_hash)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                event_type,
+                now_ts,
+                actor,
+                session_id,
+                json.dumps(body, default=str),
+                data_hash,
+                self._last_hash,
+                chain_hash,
+            ),
+        )
+        self._conn.commit()
+        self._last_hash = chain_hash
+        return chain_hash
+
+    def verify(self) -> tuple[bool, str | None]:
+        """Verify the hash chain according to contracts.AuditLog protocol."""
+        rows = self._conn.execute(
+            "SELECT id, data_json, data_hash, prev_hash, chain_hash FROM audit_log ORDER BY id"
+        ).fetchall()
+        if not rows:
+            return True, None
+        prev_hash = chain.GENESIS_HASH
+        for row in rows:
+            entry_id, data_json, data_hash, expected_prev, chain_hash = row
+            data_dict = json.loads(data_json)
+            entry = chain.ChainEntry(
+                index=entry_id,
+                data_hash=data_hash,
+                prev_hash=expected_prev,
+                chain_hash=chain_hash,
+            )
+            if not chain.verify_entry(entry, data_dict, prev_hash):
+                return False, str(entry_id)
+            prev_hash = chain_hash
+        return True, None
+
+    def query(self, **filters: Any) -> list[dict[str, Any]]:
+        """Query audit log entries formatted as dicts for contracts.AuditLog protocol."""
+        rows = self._conn.execute(
+            "SELECT id, event_type, timestamp, actor, session_id, data_json, prev_hash, chain_hash FROM audit_log ORDER BY id ASC"
+        ).fetchall()
+        out = []
+        for row in rows:
+            entry_id, ev_type, ts, actor, session_id, data_json, prev, h = row
+            raw = json.loads(data_json)
+            data_payload = raw.get("data", raw)
+            entry = {
+                "seq": entry_id,
+                "event_type": ev_type,
+                "data": data_payload,
+                "actor": actor or raw.get("actor"),
+                "session_id": session_id or raw.get("session_id"),
+                "ts": raw.get("ts") or datetime.fromtimestamp(ts, tz=timezone.utc).isoformat(),
+                "prev": prev,
+                "hash": h,
+            }
+            if all(entry.get(k) == v for k, v in filters.items()):
+                out.append(entry)
+        return out
+

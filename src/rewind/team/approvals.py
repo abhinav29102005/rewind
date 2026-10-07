@@ -67,6 +67,7 @@ class ApprovalQueueManager:
             mode=mode,
             required=required,
             expires_at=expires_at,
+            action_payload=action.payload,
         )
         if self.audit_log:
             self.audit_log.append(
