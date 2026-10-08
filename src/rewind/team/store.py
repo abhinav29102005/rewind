@@ -330,6 +330,14 @@ class TeamStore:
 
     def list_approval_requests(self, status: ApprovalStatus | None = None) -> list[ApprovalRequest]:
         with self._lock:
+            # Lazily expire pending requests
+            now = datetime.now()
+            self._conn.execute(
+                "UPDATE approval_requests SET status = 'expired', decided_at = ? WHERE status = 'pending' AND expires_at < ?",
+                (now.isoformat(), now.isoformat())
+            )
+            self._conn.commit()
+
             query = "SELECT * FROM approval_requests"
             params: list[Any] = []
             if status:

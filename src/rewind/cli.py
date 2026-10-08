@@ -570,5 +570,47 @@ def plugin_list() -> None:
     console.print(table)
 
 
+
+# =============================================================================
+# Integrate / Connect Commands
+# =============================================================================
+@main.command(name="integrate")
+@click.option("--agent", type=click.Choice(["antigravity", "vscode", "claude", "cursor", "windsurf", "zed", "roo", "all"]), help="Target agent to configure")
+@click.option("--config", "config_path", type=click.Path(), help="Inject Rewind into a custom JSON config path")
+@click.option("--print-json", is_flag=True, help="Print MCP configuration snippet to stdout")
+def integrate_cmd(agent: str | None, config_path: str | None, print_json: bool) -> None:
+    """Incorporate Rewind MCP guardrails into Claude, Cursor, Windsurf, Zed, or any client."""
+    import shutil
+    import subprocess
+    from pathlib import Path
+
+    repo_dir = Path(__file__).resolve().parent.parent.parent
+    uv_bin = shutil.which("uv") or "uv"
+
+    mcp_snippet = {
+        "mcpServers": {
+            "rewind-guard": {
+                "command": uv_bin,
+                "args": ["--directory", str(repo_dir), "run", "rewind-mcp"]
+            }
+        }
+    }
+
+    if print_json:
+        console.print(json.dumps(mcp_snippet, indent=2))
+        return
+
+    script_path = repo_dir / "scripts" / "setup-agent.sh"
+    if script_path.exists():
+        args = [str(script_path)]
+        if agent:
+            args.extend(["--agent", agent])
+        if config_path:
+            args.extend(["--config", config_path])
+        subprocess.run(args)
+    else:
+        console.print(Panel(json.dumps(mcp_snippet, indent=2), title="Add to your Agent's MCP Config"))
+
+
 if __name__ == "__main__":
     main()

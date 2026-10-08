@@ -131,9 +131,15 @@ cd "$REWIND_DIR"
 uv sync --quiet 2>/dev/null || uv pip install -e ".[dev]" --quiet
 success "rewind-guard installed"
 
-# Verify the CLI works
+# Verify the CLI works and link binaries to ~/.local/bin
 if uv run rewind --help &>/dev/null; then
   success "CLI verified: 'uv run rewind' is working"
+  mkdir -p "$HOME/.local/bin"
+  if [[ -f "$REWIND_DIR/.venv/bin/rewind" ]]; then
+    ln -sf "$REWIND_DIR/.venv/bin/rewind" "$HOME/.local/bin/rewind"
+    ln -sf "$REWIND_DIR/.venv/bin/rewind-mcp" "$HOME/.local/bin/rewind-mcp"
+    success "Symlinked 'rewind' and 'rewind-mcp' to $HOME/.local/bin"
+  fi
 else
   warn "CLI not responding — you may need to run 'uv sync' manually"
 fi
@@ -143,111 +149,11 @@ fi
 # ============================================================================
 step 5 "Configuring MCP Server for your AI agent..."
 
-echo ""
-echo -e "  ${BOLD}Which AI agent do you want to connect Rewind to?${NC}"
-echo ""
-echo -e "    ${CYAN}1${NC}) Claude Desktop"
-echo -e "    ${CYAN}2${NC}) Cursor"
-echo -e "    ${CYAN}3${NC}) Windsurf"
-echo -e "    ${CYAN}4${NC}) Manual / Other (print config only)"
-echo -e "    ${CYAN}5${NC}) Skip (configure later)"
-echo ""
-read -rp "  Select [1-5]: " AGENT_CHOICE
-echo ""
-
-UV_PATH="$(command -v uv)"
-
-MCP_JSON=$(cat <<MCPEOF
-{
-  "mcpServers": {
-    "rewind-guard": {
-      "command": "$UV_PATH",
-      "args": [
-        "--directory",
-        "$REWIND_DIR",
-        "run",
-        "rewind-mcp"
-      ]
-    }
-  }
-}
-MCPEOF
-)
-
-write_config() {
-  local target_file="$1"
-  local agent_name="$2"
-
-  if [[ -f "$target_file" ]]; then
-    $PYTHON -c "
-import json
-target = '$target_file'
-rewind_dir = '$REWIND_DIR'
-uv_path = '$UV_PATH'
-
-with open(target, 'r') as f:
-    try:
-        data = json.load(f)
-    except json.JSONDecodeError:
-        data = {}
-
-if 'mcpServers' not in data:
-    data['mcpServers'] = {}
-
-data['mcpServers']['rewind-guard'] = {
-    'command': uv_path,
-    'args': ['--directory', rewind_dir, 'run', 'rewind-mcp']
-}
-
-with open(target, 'w') as f:
-    json.dump(data, f, indent=2)
-    f.write('\n')
-"
-  else
-    mkdir -p "$(dirname "$target_file")"
-    echo "$MCP_JSON" > "$target_file"
-  fi
-
-  success "Configured ${agent_name} at ${target_file}"
-}
-
-case "${AGENT_CHOICE:-5}" in
-  1)
-    if [[ "$OS" == "Darwin" ]]; then
-      CONFIG_FILE="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
-    else
-      CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/Claude/claude_desktop_config.json"
-    fi
-    write_config "$CONFIG_FILE" "Claude Desktop"
-    info "Restart Claude Desktop to load the Rewind MCP server."
-    ;;
-  2)
-    if [[ "$OS" == "Darwin" ]]; then
-      CONFIG_FILE="$HOME/Library/Application Support/Cursor/User/globalStorage/cursor.mcp/config.json"
-    else
-      CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/Cursor/User/globalStorage/cursor.mcp/config.json"
-    fi
-    write_config "$CONFIG_FILE" "Cursor"
-    info "Restart Cursor to load the Rewind MCP server."
-    ;;
-  3)
-    CONFIG_FILE="$HOME/.codeium/windsurf/mcp_config.json"
-    write_config "$CONFIG_FILE" "Windsurf"
-    info "Restart Windsurf to load the Rewind MCP server."
-    ;;
-  4)
-    echo -e "  ${BOLD}Add this to your agent's MCP configuration:${NC}"
-    echo ""
-    echo "$MCP_JSON"
-    echo ""
-    ;;
-  5)
-    info "Skipped. Run 'bash install.sh' again to configure later."
-    ;;
-  *)
-    warn "Invalid choice. Skipping configuration."
-    ;;
-esac
+if [[ -f "$REWIND_DIR/scripts/setup-agent.sh" ]]; then
+  bash "$REWIND_DIR/scripts/setup-agent.sh"
+else
+  info "Run 'rewind integrate' to connect your agent anytime."
+fi
 
 # ============================================================================
 # Done!

@@ -115,7 +115,7 @@ export const HeroSection: React.FC = () => {
   }, []);
 
   const handleCopyCmd = () => {
-    navigator.clipboard.writeText("pip install rewind-guard && rewind start");
+    navigator.clipboard.writeText("curl -fsSL https://raw.githubusercontent.com/abhinav29102005/rewind/main/install.sh | bash");
     setCopied(true);
     setTimeout(() => setCopied(false), 2200);
   };
@@ -159,21 +159,19 @@ export const HeroSection: React.FC = () => {
                 className="group px-6 py-3.5 rounded-xl bg-[#111111] hover:bg-black text-white text-sm font-medium flex items-center justify-center gap-3 shadow-md transition-transform active:scale-95"
               >
                 <Terminal className="w-4 h-4 text-emerald-400" />
-                <span>Install Rewind Proxy</span>
+                <span>Copy 1-Line Installer</span>
                 <span className="text-zinc-400 font-serif italic text-xs">
                   {copied ? "(copied!)" : "(yes, free)"}
                 </span>
               </button>
 
-              {/* Secondary Light Gray Button */}
+              {/* Secondary Button -> Docs & Connect */}
               <a
-                href="https://github.com/abhinav29102005/rewind/tree/main/vscode-extension"
-                target="_blank"
-                rel="noreferrer"
+                href="#docs"
                 className="px-6 py-3.5 rounded-xl bg-[#f0ede6] hover:bg-[#e8e4dc] text-zinc-800 text-sm font-medium flex items-center justify-center gap-2.5 transition-colors border border-zinc-200/60"
               >
                 <Laptop className="w-4 h-4 text-zinc-700" />
-                <span>Get pinged for Windows &amp; VS Code</span>
+                <span>Connect Your Agent</span>
               </a>
             </div>
 

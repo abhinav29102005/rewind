@@ -5,8 +5,8 @@ import { HeroSection } from './components/HeroSection';
 import { ActionSimulator } from './components/ActionSimulator';
 import { FeaturesGrid } from './components/FeaturesGrid';
 import { BenchmarkTable } from './components/BenchmarkTable';
+import { DocsSection } from './components/DocsSection';
 import { Footer } from './components/Footer';
-import { InstallationSection } from './components/InstallationSection';
 
 export const App: React.FC = () => {
   return (
@@ -18,7 +18,7 @@ export const App: React.FC = () => {
         <ActionSimulator />
         <FeaturesGrid />
         <BenchmarkTable />
-        <InstallationSection />
+        <DocsSection />
       </main>
       <Footer />
     </div>

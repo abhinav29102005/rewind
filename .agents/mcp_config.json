@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "rewind-guard": {
+      "command": "/home/bigboyaks/.local/bin/uv",
+      "args": [
+        "--directory",
+        "/mnt/storage/Projects/rewind",
+        "run",
+        "rewind-mcp"
+      ]
+    }
+  }
+}

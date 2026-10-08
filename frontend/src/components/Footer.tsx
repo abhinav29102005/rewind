@@ -36,10 +36,10 @@ export const Footer: React.FC = () => {
               Product
             </h4>
             <ul className="space-y-2.5 text-sm text-zinc-600">
+              <li><a href="#how-it-works" className="hover:text-black transition-colors">Architecture</a></li>
               <li><a href="#simulator" className="hover:text-black transition-colors">Interactive Test</a></li>
-              <li><a href="#how-it-works" className="hover:text-black transition-colors">Policy Classifier</a></li>
               <li><a href="#benchmarks" className="hover:text-black transition-colors">Benchmarks</a></li>
-              <li><a href="http://127.0.0.1:8787/dashboard" target="_blank" rel="noreferrer" className="hover:text-black transition-colors flex items-center gap-1">Web Control Plane <ArrowUpRight className="w-3 h-3" /></a></li>
+              <li><a href="#docs" className="hover:text-black transition-colors">Docs & Install</a></li>
             </ul>
           </div>
 
@@ -49,10 +49,10 @@ export const Footer: React.FC = () => {
               Integrations
             </h4>
             <ul className="space-y-2.5 text-sm text-zinc-600">
-              <li><a href="#" className="hover:text-black transition-colors">FastMCP Protocol</a></li>
-              <li><a href="#" className="hover:text-black transition-colors">Claude Code</a></li>
-              <li><a href="#" className="hover:text-black transition-colors">VS Code Extension</a></li>
-              <li><a href="#" className="hover:text-black transition-colors">Docker & Kubernetes</a></li>
+              <li><a href="#docs" className="hover:text-black transition-colors">Claude Desktop</a></li>
+              <li><a href="#docs" className="hover:text-black transition-colors">Cursor</a></li>
+              <li><a href="#docs" className="hover:text-black transition-colors">Windsurf</a></li>
+              <li><a href="#docs" className="hover:text-black transition-colors">Any MCP Client</a></li>
             </ul>
           </div>
 
@@ -62,10 +62,10 @@ export const Footer: React.FC = () => {
               Resources
             </h4>
             <ul className="space-y-2.5 text-sm text-zinc-600">
-              <li><a href="https://github.com/abhinav29102005/rewind" target="_blank" rel="noreferrer" className="hover:text-black transition-colors">GitHub Repository</a></li>
-              <li><a href="#" className="hover:text-black transition-colors">Documentation</a></li>
-              <li><a href="#" className="hover:text-black transition-colors">Changelog</a></li>
-              <li><a href="#" className="hover:text-black transition-colors">Security Whitepaper</a></li>
+              <li><a href="https://github.com/abhinav29102005/rewind" target="_blank" rel="noreferrer" className="hover:text-black transition-colors flex items-center gap-1">GitHub <ArrowUpRight className="w-3 h-3" /></a></li>
+              <li><a href="#docs" className="hover:text-black transition-colors">CLI Reference</a></li>
+              <li><a href="#docs" className="hover:text-black transition-colors">MCP Tools Ref</a></li>
+              <li><a href="https://github.com/abhinav29102005/rewind/blob/main/PLAN.md" target="_blank" rel="noreferrer" className="hover:text-black transition-colors flex items-center gap-1">Roadmap <ArrowUpRight className="w-3 h-3" /></a></li>
             </ul>
           </div>
 

@@ -4,7 +4,7 @@ You use AI agents (like Cursor, Claude Code, or Antigravity) to write code and e
 
 This VS Code extension provides the Human-in-the-Loop (HITL) approval UI directly inside your editor. 
 
-It is a thin client over the local [Rewind](https://github.com/your-org/rewind) engine.
+It is a thin client over the local [Rewind](https://github.com/abhinav29102005/rewind) engine.
 
 ## What it does
 

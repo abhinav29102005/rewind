@@ -81,6 +81,17 @@ def create_team_app(
             user_id = cookie_mgr.verify_cookie_value(cookie_val)
             if user_id:
                 return store.get_user(user_id)
+
+        # Local loopback zero-login access for developer machine (127.0.0.1 / localhost)
+        client_ip = request.client.host if request.client else ""
+        if client_ip in ("127.0.0.1", "::1", "localhost"):
+            users = store.list_users()
+            for u in users:
+                if u.active and u.role.value in ("admin", "approver"):
+                    return u
+            from ..team.rbac import Role
+            return store.create_user("usr_local_admin", "local_admin", None, Role.ADMIN)
+
         return None
 
     def require_user(user: User | None = Depends(get_current_user)) -> User:

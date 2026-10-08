@@ -111,10 +111,10 @@ async def execute_command(command: str, session_id: str = "agent-session-default
             f"Risk Level: {verdict.risk.value.upper()}\n"
             f"Rule Triggered: {', '.join(verdict.rule_ids)}\n"
             f"Reason: {'; '.join(verdict.reasons)}\n\n"
-            f\"Action paused. Please ask the user for permission in this chat right now.\n\"
-            f\"Tell the user exactly what you were trying to do. If the user replies with 'yes' or 'approve',\n\"
-            f\"use the `approve_request` tool with request_id '{req.id}'.\n\"
-            f\"After it is approved, you can execute it using `execute_approved_command('{req.id}')`.\"
+            f"Action paused. Please ask the user for permission in this chat right now.\n"
+            f"Tell the user exactly what you were trying to do. If the user replies with 'yes' or 'approve',\n"
+            f"use the `approve_request` tool with request_id '{req.id}'.\n"
+            f"After it is approved, you can execute it using `execute_approved_command('{req.id}')`."
         )
 
     elif verdict.risk == RiskClass.REVERSIBLE:
