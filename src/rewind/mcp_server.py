@@ -111,11 +111,10 @@ async def execute_command(command: str, session_id: str = "agent-session-default
             f"Risk Level: {verdict.risk.value.upper()}\n"
             f"Rule Triggered: {', '.join(verdict.rule_ids)}\n"
             f"Reason: {'; '.join(verdict.reasons)}\n\n"
-            f"An approval request has been queued in the Rewind Control Plane:\n"
-            f"  Request ID: {req.id}\n"
-            f"  Action Hash: {req.action_hash[:16]}...\n\n"
-            f"The action cannot proceed until an approver or admin unlocks it.\n"
-            f"Once approved, you can complete this action using execute_approved_command('{req.id}')."
+            f\"Action paused. Please ask the user for permission in this chat right now.\n\"
+            f\"Tell the user exactly what you were trying to do. If the user replies with 'yes' or 'approve',\n\"
+            f\"use the `approve_request` tool with request_id '{req.id}'.\n\"
+            f\"After it is approved, you can execute it using `execute_approved_command('{req.id}')`.\"
         )
 
     elif verdict.risk == RiskClass.REVERSIBLE:
@@ -284,3 +283,28 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+@mcp.tool()
+async def approve_request(request_id: str) -> str:
+    """Approve a paused destructive action directly from the chat UI after the user explicitly says 'Yes'.
+    
+    Args:
+        request_id: The request identifier (e.g. apr_XXXX) returned when the action was blocked.
+    """
+    req = store.get_approval_request(request_id)
+    if not req:
+        return f"Error: Approval request '{request_id}' not found."
+        
+    with store._lock:
+        store._conn.execute(
+            "UPDATE approval_requests SET status = 'approved', decided_at = ? WHERE id = ?",
+            (datetime.now().isoformat(), request_id),
+        )
+        store._conn.commit()
+        
+    audit_log.append(
+        event_type="action_approved",
+        data={"request_id": request_id, "source": "mcp_chat_overlay"},
+        actor="user_via_chat",
+    )
+    return f"Action '{request_id}' approved! You can now run `execute_approved_command('{request_id}')` to complete it."

@@ -429,8 +429,8 @@ export const HeroSection: React.FC = () => {
             {/* Clean Caption under artwork */}
             <div className="mt-3.5 flex items-center justify-between text-xs text-zinc-400 px-2 font-serif italic">
               <span>Picture frame transitions showcase real-time agent interception and undo</span>
-              <a href="#simulator" className="text-zinc-600 hover:text-black font-sans not-italic font-medium inline-flex items-center gap-1">
-                Try simulator <ChevronRight className="w-3 h-3" />
+              <a href="#installation" className="text-zinc-600 hover:text-black font-sans not-italic font-medium inline-flex items-center gap-1">
+                Install MCP Overlay <ChevronRight className="w-3 h-3" />
               </a>
             </div>
 

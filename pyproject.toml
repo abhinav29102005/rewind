@@ -61,10 +61,10 @@ rewind = "rewind.cli:main"
 rewind-mcp = "rewind.mcp_server:main"
 
 [project.urls]
-Homepage = "https://github.com/your-org/rewind"
-Documentation = "https://github.com/your-org/rewind/tree/main/docs"
-Repository = "https://github.com/your-org/rewind"
-Issues = "https://github.com/your-org/rewind/issues"
+Homepage = "https://github.com/abhinav29102005/rewind"
+Documentation = "https://github.com/abhinav29102005/rewind/tree/main/docs"
+Repository = "https://github.com/abhinav29102005/rewind"
+Issues = "https://github.com/abhinav29102005/rewind/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/rewind", "benchmark"]
