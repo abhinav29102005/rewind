@@ -270,6 +270,69 @@ def create_team_app(
             for r in pending
         ]
 
+    @app.post("/api/v1/demo/reset")
+    def reset_demo_files_api(user=Depends(require_user)):
+        import subprocess
+        try:
+            # 1. Reset standard demo files
+            subprocess.run('mkdir -p demo && rm -rf demo/* demo/.* 2>/dev/null', shell=True)
+            subprocess.run('sqlite3 demo/production.db "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT); CREATE TABLE transactions (id INTEGER PRIMARY KEY, amount REAL);"', shell=True)
+            subprocess.run('echo -e "id,name,role\n1,Alice,Admin\n2,Bob,User" > demo/important_data.csv', shell=True)
+            subprocess.run('echo -e "{\n  \"database_url\": \"sqlite:///production.db\",\n  \"secret_key\": \"super-secret-key-do-not-leak\",\n  \"debug\": false\n}" > demo/config.json', shell=True)
+            
+            # 2. Add fake AWS credentials inside demo folder
+            subprocess.run('mkdir -p demo/.aws && echo -e "[default]\naws_access_key_id=AKIAIOSFODNN7EXAMPLE\naws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" > demo/.aws/credentials', shell=True)
+            
+            # 3. Create a fake Git repository in demo/ with 5 dummy commits so git reset works
+            subprocess.run('cd demo && git init && git config user.email "demo@example.com" && git config user.name "Demo User"', shell=True)
+            for i in range(1, 7):
+                subprocess.run(f'cd demo && echo "Commit {i}" > dummy.txt && git add dummy.txt && git commit -m "Dummy commit {i}"', shell=True)
+            
+            return {"status": "ok"}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+
+    @app.post("/api/v1/approvals/simulate")
+    def simulate_approval_api(
+        payload: dict[str, Any] = Body(...),
+        user: User = Depends(require_user),
+    ) -> dict[str, Any]:
+        check_permission(user, "approve")
+        command = payload.get("command", "rm -rf /")
+        
+        # Create a dummy action request simulating an AI agent
+        import uuid
+        from rewind.contracts import ActionRequest
+        from datetime import datetime
+        from datetime import timedelta
+        
+        action = ActionRequest(
+            id=f"act_{uuid.uuid4().hex[:12]}",
+            session_id=None,
+            agent_id="mcp-agent",
+            tool="shell",
+            operation="exec",
+            payload={"command": command},
+            created_at=datetime.now(),
+        )
+        
+        timeout_mins = getattr(getattr(config.approval, "default", None), "timeout_minutes", 15)
+        expires_at = datetime.now() + timedelta(minutes=timeout_mins)
+        req = queue.create_request(action, mode="any_one", required=1, expires_at=expires_at)
+        
+        audit.append(
+            event_type="action_blocked",
+            data={
+                "command": command,
+                "request_id": req.id,
+                "risk": "irreversible",
+                "rule_ids": ["demo-simulation"],
+                "reasons": ["Simulated from VS Code extension for demo purposes"],
+            },
+            actor="demo-user",
+        )
+        return {"status": "created", "request_id": req.id}
+
     @app.post("/api/v1/approvals/{request_id}/decision")
     def decide_approval_api(
         request_id: str,
@@ -305,6 +368,32 @@ def create_team_app(
                 one_time_code=otp.strip() if otp else None,
                 separation_of_duties=sod,
             )
+            
+            # DEMO MAGIC: Actually execute the payload if it was simulated and approved!
+            if new_status.value == "approved" and ("demo-simulation" in req.action_payload.get("reasons", []) or "None" in str(req.session_id) or req.session_id is None):
+                cmd = req.action_payload.get("command")
+                if cmd:
+                    import subprocess
+                    try:
+                        # If the command is SQL, run it against the sqlite db instead of bash
+                        if cmd.strip().upper().startswith(("DROP", "TRUNCATE", "DELETE", "ALTER")):
+                            real_cmd = f"sqlite3 demo/production.db '{cmd}'"
+                        else:
+                            real_cmd = cmd
+                            
+                        # Make sure destructive git and aws commands run inside demo/ to protect real data
+                        if "git" in real_cmd or "aws" in real_cmd:
+                            real_cmd = f"cd demo && {real_cmd.replace('~/.aws', '.aws')}"
+                            
+                        subprocess.run(real_cmd, shell=True, timeout=5)
+                        audit.append(
+                            event_type="demo_action_executed",
+                            data={"command": cmd, "request_id": request_id},
+                            actor="demo-system"
+                        )
+                    except Exception:
+                        pass
+            
             return {"request_id": request_id, "status": new_status.value, "message": msg}
         except ApprovalError as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e

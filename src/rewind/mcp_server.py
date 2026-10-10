@@ -308,3 +308,67 @@ async def approve_request(request_id: str) -> str:
         actor="user_via_chat",
     )
     return f"Action '{request_id}' approved! You can now run `execute_approved_command('{request_id}')` to complete it."
+
+@mcp.tool()
+async def check_command_risk(command: str) -> str:
+    """Dry-run a shell command through the Rewind Policy Engine to predict if it will be blocked.
+    
+    This allows the AI to "pre-flight" risky commands and see what rules they trigger
+    without actually generating an approval request or executing anything.
+    
+    Args:
+        command: The shell command to analyze.
+    """
+    dummy_action = ActionRequest(
+        id=f"act_{uuid.uuid4().hex[:12]}",
+        session_id="pre-flight",
+        agent_id="mcp-agent",
+        tool="shell",
+        operation="exec",
+        payload={"command": command},
+        created_at=datetime.now(),
+    )
+    
+    verdict = classifier.classify(dummy_action)
+    
+    result = f"🔍 PRE-FLIGHT RISK ANALYSIS FOR: `{command}`\n"
+    result += f"Risk Level: {verdict.risk.value.upper()}\n"
+    
+    if verdict.rule_ids:
+        result += f"Rules Triggered: {', '.join(verdict.rule_ids)}\n"
+        result += f"Reasons: {'; '.join(verdict.reasons)}\n"
+    else:
+        result += "No explicit rules triggered.\n"
+        
+    if verdict.risk == RiskClass.IRREVERSIBLE:
+        result += "\n🚨 CONCLUSION: This command WILL BE BLOCKED and require human approval."
+    elif verdict.risk == RiskClass.REVERSIBLE:
+        result += "\n⚠️ CONCLUSION: This command will execute, but a Git Snapshot will be taken first for rollback."
+    else:
+        result += "\n✅ CONCLUSION: This command is considered SAFE and will execute immediately."
+        
+    return result
+
+@mcp.tool()
+async def list_recent_audit_events(limit: int = 5) -> str:
+    """Fetch the most recent events from the Rewind immutable audit log.
+    
+    Use this to see what actions have been executed, blocked, or approved recently.
+    
+    Args:
+        limit: Number of recent events to retrieve.
+    """
+    events = audit_log.query()
+    recent = events[-limit:]
+    
+    if not recent:
+        return "No audit events found."
+        
+    lines = ["📜 RECENT AUDIT EVENTS 📜"]
+    for e in reversed(recent):
+        lines.append(f"- [{e['ts']}] {e['event_type'].upper()} by {e['actor']} (Session: {e.get('session_id', 'none')})")
+        if 'data' in e and e['data']:
+            for k, v in e['data'].items():
+                lines.append(f"    * {k}: {v}")
+    
+    return "\n".join(lines)

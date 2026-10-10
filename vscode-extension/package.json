@@ -1,8 +1,8 @@
 {
   "name": "rewind-guard",
-  "displayName": "Rewind — AI Agent Guardrails & Approval",
+  "displayName": "Rewind \u2014 AI Agent Guardrails & Approval",
   "description": "Enforced approval and undo layer for AI agents (Cursor, Claude, Antigravity, Windsurf). Intercepts destructive actions with instant rollback.",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "publisher": "abhinav29102005",
   "engines": {
     "vscode": "^1.80.0"
